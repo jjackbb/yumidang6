@@ -18,15 +18,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   return (
     <>
-      {/* Floating Action Button (FAB) matching the purple + button in screenshot */}
-      <button
-        id="btn-fab-create"
-        onClick={onOpenCreate}
-        className="fixed bottom-[74px] right-6 z-30 w-[54px] h-[54px] rounded-full bg-[#6c2cf5] text-white flex items-center justify-center shadow-[0_4px_16px_rgba(108,44,245,0.45)] hover:bg-[#5820d8] active:scale-95 transition-transform"
-        aria-label="동행 모집하기"
-      >
-        <Plus className="w-7 h-7 stroke-[2.6]" />
-      </button>
+      {/* Floating Action Button (FAB) matching the purple + button in screenshot (Hidden in chat view) */}
+      {activeTab !== 'chat' && (
+        <button
+          id="btn-fab-create"
+          onClick={onOpenCreate}
+          className="fixed bottom-[74px] right-6 z-30 w-[54px] h-[54px] rounded-full bg-[#6c2cf5] text-white flex items-center justify-center shadow-[0_4px_16px_rgba(108,44,245,0.45)] hover:bg-[#5820d8] active:scale-95 transition-transform"
+          aria-label="동행 모집하기"
+        >
+          <Plus className="w-7 h-7 stroke-[2.6]" />
+        </button>
+      )}
 
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200/80 px-3 py-1.5 flex items-center justify-around max-w-[480px] mx-auto">

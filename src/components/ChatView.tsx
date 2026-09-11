@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, MapPin, Clock, CheckCheck, Info, CalendarClock, Check, X, Sparkles, PhoneCall, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Appointment, ScheduleProposal } from '../types';
 
@@ -52,6 +52,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [proposedDateTime, setProposedDateTime] = useState('2026.9.12(토) 15:00');
   const [proposedLocation, setProposedLocation] = useState(appointment.location);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +203,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-70px)] bg-[#f6f7fb] text-left">
+    <div className="flex flex-col h-[calc(100vh-125px)] bg-[#f6f7fb] text-left">
       {/* Top Partner Header */}
       <div className="bg-white px-3.5 py-3 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -390,6 +400,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           );
         })}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Chat Input */}
