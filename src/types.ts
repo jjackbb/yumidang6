@@ -69,3 +69,22 @@ export interface NotificationItem {
   read: boolean;
   type: 'matching' | 'event' | 'chat';
 }
+
+export interface CurrentUser {
+  id: string;
+  isLoggedIn: boolean;
+  phone: string;
+  realName: string;
+  maskedName: string;
+  nickname: string;
+  gender: 'female' | 'male' | 'undisclosed';
+  ageGroup: string;
+  neighborhood: string;
+  sugarContent: number; // 당도 (기본 50.0)
+  isPhoneVerified: boolean;
+  isKycVerified: boolean;
+  avatar: string;
+  bio: string;
+  joinedAt: string;
+}
+

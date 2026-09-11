@@ -92,7 +92,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ appointment, onOpenDashboard
                 식사 동행
               </span>
             </div>
-            <p className="text-xs text-gray-500">응답률 98% • 매너온도 4.9</p>
+            <p className="text-xs text-gray-500">응답률 98% • 당도 99.2</p>
           </div>
         </div>
 

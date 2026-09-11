@@ -105,8 +105,14 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                         {post.title}
                       </h5>
                     </div>
-                    <span className="text-xs font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-1 rounded-lg flex-shrink-0">
-                      {post.currentMembers}/{post.maxMembers}명
+                    <span
+                      className={`text-xs font-bold px-2 py-1 rounded-lg flex-shrink-0 ${
+                        post.currentMembers >= 2
+                          ? 'bg-gray-100 text-gray-500'
+                          : 'bg-[#f0edff] text-[#6c2cf5]'
+                      }`}
+                    >
+                      {post.currentMembers >= 2 ? '2/2명 (마감)' : '1/2명 (모집중)'}
                     </span>
                   </div>
 

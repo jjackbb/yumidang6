@@ -112,7 +112,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                         <span className="text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
                           {post.category}
                         </span>
-                        {post.status === 'closed' ? (
+                        {post.status === 'closed' || isJoined ? (
                           <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                             마감
                           </span>
@@ -128,8 +128,14 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg">
-                        {isJoined ? post.currentMembers + 1 : post.currentMembers}/{post.maxMembers}명
+                      <span
+                        className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+                          isJoined || post.status === 'closed'
+                            ? 'bg-gray-100 text-gray-500'
+                            : 'bg-[#f0edff] text-[#6c2cf5]'
+                        }`}
+                      >
+                        {isJoined || post.status === 'closed' ? '2/2명' : '1/2명'}
                       </span>
                     </div>
                   </div>

@@ -1,14 +1,22 @@
 import React from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, ShieldCheck } from 'lucide-react';
 
 import logoImg from '../assets/logo.jpg';
+import { CurrentUser } from '../types';
 
 interface HeaderProps {
   unreadCount?: number;
   onOpenNotifications: () => void;
+  currentUser: CurrentUser | null;
+  onOpenAuth: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ unreadCount = 2, onOpenNotifications }) => {
+export const Header: React.FC<HeaderProps> = ({
+  unreadCount = 2,
+  onOpenNotifications,
+  currentUser,
+  onOpenAuth,
+}) => {
   return (
     <header className="sticky top-0 z-30 bg-white px-5 py-3.5 flex items-center justify-between border-b border-transparent transition-all">
       {/* Brand Logo & Name */}
@@ -23,8 +31,22 @@ export const Header: React.FC<HeaderProps> = ({ unreadCount = 2, onOpenNotificat
         </span>
       </div>
 
-      {/* Right Action: Notification Bell */}
-      <div className="flex items-center">
+      {/* Right Action: Auth button & Notification Bell */}
+      <div className="flex items-center gap-1.5">
+        {currentUser && currentUser.isLoggedIn ? (
+          <div className="flex items-center gap-1 px-2.5 py-1 bg-[#f0edff] rounded-full border border-[#ded6fb] text-xs font-bold text-[#6c2cf5]">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#6c2cf5]" />
+            <span>{currentUser.maskedName}</span>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            className="px-2.5 py-1 bg-[#6c2cf5] text-white text-xs font-bold rounded-lg hover:bg-[#5820d8] transition-colors shadow-xs"
+          >
+            본인인증
+          </button>
+        )}
+
         <button
           id="btn-notifications"
           onClick={onOpenNotifications}

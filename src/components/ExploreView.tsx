@@ -93,8 +93,16 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
               <span className="font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
                 {post.category}
               </span>
-              <span className="text-gray-500 font-medium">
-                {post.currentMembers}/{post.maxMembers}명 모집
+              <span
+                className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
+                  post.status === 'closed' || post.currentMembers >= 2
+                    ? 'bg-gray-100 text-gray-500'
+                    : 'bg-purple-50 text-[#6c2cf5]'
+                }`}
+              >
+                {post.status === 'closed' || post.currentMembers >= 2
+                  ? '2/2명 (마감)'
+                  : '1/2명 (모집중)'}
               </span>
             </div>
 

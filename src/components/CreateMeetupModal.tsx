@@ -146,26 +146,28 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
             />
           </div>
 
-          {/* Member count */}
+          {/* Member count: 1:1 Matching fixed */}
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              모집 인원 (본인 포함)
+              모집 형태
             </label>
-            <div className="flex items-center gap-3">
-              {[2, 3, 4, 5, 6].map((num) => (
-                <button
-                  type="button"
-                  key={num}
-                  onClick={() => setMaxMembers(num)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                    maxMembers === num
-                      ? 'border-[#6c2cf5] bg-[#f0edff] text-[#6c2cf5]'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {num}명
-                </button>
-              ))}
+            <div className="p-3 bg-[#f5f3ff] rounded-xl border border-[#ded6fb] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#6c2cf5] text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                  1:1
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-gray-900 block">
+                    1대1 맞춤 동행
+                  </span>
+                  <span className="text-[11px] text-gray-500">
+                    나 + 동행 파트너 1명 (총 2인 매칭)
+                  </span>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-[#6c2cf5] bg-white px-2.5 py-1 rounded-lg border border-[#e5dcfa]">
+                2명 고정
+              </span>
             </div>
           </div>
 
