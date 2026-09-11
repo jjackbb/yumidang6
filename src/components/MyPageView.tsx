@@ -64,7 +64,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h3 className="text-[17px] font-bold text-gray-900">
-                  {currentUser.nickname} ({currentUser.maskedName})
+                  {currentUser.maskedName}
                 </h3>
                 {currentUser.isKycVerified ? (
                   <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full flex items-center gap-0.5">

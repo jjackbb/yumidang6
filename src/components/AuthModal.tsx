@@ -70,7 +70,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
   // Step 3: Real Name & Profile
   const [realName, setRealName] = useState('조유미');
-  const [nickname, setNickname] = useState('다정한이웃');
   const [gender, setGender] = useState<'female' | 'male' | 'undisclosed'>('female');
   const [ageGroup, setAgeGroup] = useState('20대');
   const [bio, setBio] = useState('브런치와 주말 문화생활을 좋아하는 동행러입니다.');
@@ -88,7 +87,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       phone,
       realName: realName.trim(),
       maskedName: masked,
-      nickname: nickname.trim() || masked,
+      nickname: masked, // 별명 없이 마스킹 실명을 공식 활동명으로 사용
       gender,
       ageGroup,
       neighborhood: '서울 강남구 역삼동',
@@ -337,23 +336,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 onChange={(e) => setRealName(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
               />
-              <p className="text-[11px] text-gray-400 mt-1">
-                * 유미당 안심 실명제에 따라 타인에게는 가운데 글자가 마스킹된 <strong>'{maskRealName(realName) || '조*미'}'</strong> 형태로만 안전하게 공개됩니다.
-              </p>
-            </div>
-
-            {/* Nickname */}
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                서비스 활동 닉네임
-              </label>
-              <input
-                type="text"
-                placeholder="예: 다정한이웃"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-              />
+              <div className="p-3 mt-2 bg-purple-50/70 rounded-2xl space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#6c2cf5]" />
+                  <span>유미당 실명 마스킹 원칙 안내</span>
+                </div>
+                <p className="text-[11px] text-purple-800 leading-relaxed">
+                  유미당은 가공된 별명이 아닌 <strong>본인확인 실명을 *로 가린 상태('{maskRealName(realName) || '조*미'}')</strong>로 모든 동행 서비스에서 안전하게 활동합니다.
+                </p>
+              </div>
             </div>
 
             {/* Gender & Age Group */}

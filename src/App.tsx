@@ -49,7 +49,7 @@ export default function App() {
     phone: '010-9876-5432',
     realName: '조유미',
     maskedName: '조*미',
-    nickname: '다정한이웃',
+    nickname: '조*미',
     gender: 'female',
     ageGroup: '20대',
     neighborhood: '서울 강남구 대치동',
