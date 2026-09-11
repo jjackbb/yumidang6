@@ -1,6 +1,8 @@
 import React from 'react';
 import { Bell } from 'lucide-react';
 
+import logoImg from '../assets/logo.jpg';
+
 interface HeaderProps {
   unreadCount?: number;
   onOpenNotifications: () => void;
@@ -12,19 +14,8 @@ export const Header: React.FC<HeaderProps> = ({ unreadCount = 2, onOpenNotificat
       {/* Brand Logo & Name */}
       <div className="flex items-center gap-2.5 select-none cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
         {/* Stylized YouMeDang Mascot Icon */}
-        <div className="w-9 h-9 rounded-full bg-[#6c2cf5] flex items-center justify-center shadow-sm text-white relative flex-shrink-0">
-          <svg viewBox="0 0 36 36" className="w-6 h-6 fill-none stroke-white stroke-[2.2] stroke-linecap-round stroke-linejoin-round">
-            {/* Mascot Character Head */}
-            <circle cx="18" cy="18" r="11" />
-            {/* Smiling Eyes */}
-            <path d="M14 16.5c.5-.8 1.5-.8 2 0" />
-            <path d="M20 16.5c.5-.8 1.5-.8 2 0" />
-            {/* Friendly Smile */}
-            <path d="M15 21.5c1 1.2 5 1.2 6 0" />
-            {/* Little antennas / hair tuft on top */}
-            <path d="M18 7V4" />
-            <circle cx="18" cy="4" r="1" fill="white" />
-          </svg>
+        <div className="w-9 h-9 rounded-full overflow-hidden shadow-sm flex-shrink-0 bg-[#6c2cf5] flex items-center justify-center">
+          <img src={logoImg} alt="유미당 로고" className="w-full h-full object-cover" />
         </div>
 
         <span className="text-[22px] font-extrabold tracking-tight text-[#6c2cf5]">

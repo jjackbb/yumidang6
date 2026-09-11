@@ -45,7 +45,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-xl ${category.iconBg} flex items-center justify-center`}>
-              <CategoryIcon type={category.iconType} />
+              <CategoryIcon type={category.iconType} className="w-[18px] h-[18px]" />
             </div>
             <div>
               <h3 className="text-[17px] font-bold text-gray-900">
