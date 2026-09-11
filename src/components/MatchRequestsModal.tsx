@@ -100,7 +100,7 @@ export const MatchRequestsModal: React.FC<MatchRequestsModalProps> = ({
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-[11px]">
                             <span className="text-[#6c2cf5] font-bold">
-                              당도 {req.requesterSugar.toFixed(1)} 🍯
+                              당도 {Math.round(req.requesterSugar)} 🍯
                             </span>
                             <span className="text-gray-300">•</span>
                             <span className="text-gray-400">{req.createdAt}</span>

@@ -92,7 +92,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
 
           <div>
             <h3 className="text-xl font-extrabold tracking-tight">{appointment.partnerName}</h3>
-            <p className="text-xs text-purple-300/80 mt-0.5">당도 99.2 🍯 • 1:1 동행 파트너</p>
+            <p className="text-xs text-purple-300/80 mt-0.5">당도 99 🍯 • 1:1 동행 파트너</p>
           </div>
 
           <div className="pt-2">

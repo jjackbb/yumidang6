@@ -222,7 +222,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 1:1 동행
               </span>
             </div>
-            <p className="text-[11px] text-gray-500">당도 99.2 🍯 • 안심 조율방</p>
+            <p className="text-[11px] text-gray-500">당도 99 🍯 • 안심 조율방</p>
           </div>
         </div>
 

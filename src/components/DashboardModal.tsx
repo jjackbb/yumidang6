@@ -105,7 +105,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                   <span className="font-bold text-[16px] text-gray-900">{appointment.partnerName}</span>
                   <div className="flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded text-amber-600 text-xs font-bold">
                     <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                    <span>당도 99.2 🍯</span>
+                    <span>당도 99 🍯</span>
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">

@@ -70,7 +70,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
                 {post.category}
               </span>
               <span className="text-xs font-semibold text-gray-500">
-                호스트: {post.author} (당도 99.2 🍯)
+                호스트: {post.author} (당도 99 🍯)
               </span>
             </div>
             <h4 className="font-bold text-sm text-gray-900 leading-snug">
@@ -117,7 +117,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
                       나의 프로필
                     </span>
                   </div>
-                  <span className="text-[11px] text-gray-500">당도 {currentUser.sugarContent.toFixed(1)} 🍯</span>
+                  <span className="text-[11px] text-gray-500">당도 {Math.round(currentUser.sugarContent)} 🍯</span>
                 </div>
               </div>
               <span className="text-[11px] text-gray-400">호스트에게 전달됨</span>

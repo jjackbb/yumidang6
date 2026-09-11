@@ -39,7 +39,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
     );
   }
 
-  const diffSugar = (currentUser.sugarContent - 50.0).toFixed(1);
+  const diffSugar = Math.round(currentUser.sugarContent - 50);
 
   return (
     <div className="px-5 pt-3 pb-24 text-left space-y-4">
@@ -91,7 +91,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
         <div className="mt-4 pt-3.5 border-t border-gray-100">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="font-semibold text-gray-700">당도</span>
-            <span className="font-bold text-[#6c2cf5]">{currentUser.sugarContent.toFixed(1)} 🍯</span>
+            <span className="font-bold text-[#6c2cf5]">{Math.round(currentUser.sugarContent)} 🍯</span>
           </div>
           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -100,9 +100,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
             />
           </div>
           <p className="text-[11px] text-gray-400 mt-1">
-            {Number(diffSugar) >= 0
+            {diffSugar >= 0
               ? `기본 당도 50에서 ${diffSugar} 올랐어요!`
-              : `기본 당도 50에서 ${Math.abs(Number(diffSugar))} 변동되었어요.`}
+              : `기본 당도 50에서 ${Math.abs(diffSugar)} 변동되었어요.`}
           </p>
         </div>
       </div>

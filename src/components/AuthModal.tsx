@@ -91,8 +91,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       nickname: nickname.trim() || masked,
       gender,
       ageGroup,
-      neighborhood: '서울 강남구 대치동',
-      sugarContent: 50.0, // 신규 가입 기본 당도 50.0 Brix
+      neighborhood: '서울 강남구 역삼동',
+      sugarContent: 50, // 신규 가입 기본 당도 50 Brix
       isPhoneVerified: true,
       isKycVerified: false,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -407,7 +407,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 </div>
               </div>
               <span className="font-extrabold text-[#6c2cf5] text-sm bg-white px-2.5 py-1 rounded-lg border border-[#ded6fb]">
-                50.0 🍯
+                50 🍯
               </span>
             </div>
 

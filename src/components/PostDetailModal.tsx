@@ -101,7 +101,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       호스트
                     </span>
                   </div>
-                  <span className="text-xs text-gray-400">당도 99.2 🍯 • 인증회원</span>
+                  <span className="text-xs text-gray-400">당도 99 🍯 • 인증회원</span>
                 </div>
               </div>
 
