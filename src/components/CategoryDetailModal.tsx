@@ -9,6 +9,7 @@ interface CategoryDetailModalProps {
   onClose: () => void;
   posts: MeetupPost[];
   onOpenCreate: () => void;
+  onSelectPost?: (post: MeetupPost) => void;
 }
 
 export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
@@ -17,6 +18,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
   onClose,
   posts,
   onOpenCreate,
+  onSelectPost,
 }) => {
   const [joinedPosts, setJoinedPosts] = useState<string[]>([]);
 
@@ -104,7 +106,8 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
               return (
                 <div
                   key={post.id}
-                  className="p-4 rounded-[20px] border border-gray-150 bg-white hover:border-[#cfbffb] transition-all shadow-xs"
+                  onClick={() => onSelectPost && onSelectPost(post)}
+                  className="p-4 rounded-[20px] border border-gray-150 bg-white hover:border-[#cfbffb] transition-all shadow-xs cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -177,7 +180,10 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                     </div>
 
                     <button
-                      onClick={() => handleToggleJoin(post.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleJoin(post.id);
+                      }}
                       className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
                         isJoined
                           ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'

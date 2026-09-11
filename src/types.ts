@@ -51,13 +51,17 @@ export interface MeetupPost {
   category: string;
   title: string;
   author: string;
+  authorId?: string;
   avatar: string;
   time: string;
   location: string;
+  publicLocation?: string;
+  secretLocation?: string;
+  partnerPreferences?: string;
   currentMembers: number;
   maxMembers: number;
   tags: string[];
-  status: 'recruiting' | 'closed';
+  status: 'recruiting' | 'closed' | 'expired';
   imageUrl?: string;
 }
 
@@ -87,4 +91,26 @@ export interface CurrentUser {
   bio: string;
   joinedAt: string;
 }
+
+export interface JoinRequest {
+  id: string;
+  postId: string;
+  postTitle: string;
+  requesterId: string;
+  requesterName: string;
+  requesterAvatar: string;
+  requesterSugar: number;
+  message: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+}
+
+export interface ScheduleProposal {
+  id: string;
+  newDateTime: string;
+  newLocation: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  proposerName: string;
+}
+
 
