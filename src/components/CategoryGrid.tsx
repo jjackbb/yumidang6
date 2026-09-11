@@ -29,10 +29,10 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
               key={cat.id}
               id={`cat-${cat.id}`}
               onClick={() => onSelectCategory(cat)}
-              className={`flex flex-col items-center justify-center py-3 px-1 rounded-[18px] bg-white border transition-all duration-150 active:scale-95 cursor-pointer ${
+              className={`flex flex-col items-center justify-center py-3 px-1 rounded-[20px] bg-white transition-all duration-150 active:scale-95 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md ${
                 isSelected
-                  ? 'border-[#6c2cf5] ring-2 ring-[#6c2cf5]/20 shadow-sm'
-                  : 'border-[#edf0f5] hover:border-[#ded6fb] hover:shadow-sm'
+                  ? 'ring-2 ring-[#6c2cf5] shadow-purple-500/10'
+                  : 'hover:shadow-md'
               }`}
             >
               {/* Colored Rounded Icon Container */}

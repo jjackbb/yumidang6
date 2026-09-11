@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right Action: Auth button & Notification Bell */}
       <div className="flex items-center gap-1.5">
         {currentUser && currentUser.isLoggedIn ? (
-          <div className="flex items-center gap-1 px-2.5 py-1 bg-[#f0edff] rounded-full border border-[#ded6fb] text-xs font-bold text-[#6c2cf5]">
+          <div className="flex items-center gap-1 px-3 py-1 bg-[#f0edff] rounded-full text-xs font-bold text-[#6c2cf5] shadow-2xs">
             <ShieldCheck className="w-3.5 h-3.5 text-[#6c2cf5]" />
             <span>{currentUser.maskedName}</span>
           </div>

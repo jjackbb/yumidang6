@@ -24,7 +24,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-[#6c2cf5]" />
             <h3 className="text-[17px] font-bold text-gray-900">알림</h3>
@@ -50,10 +50,10 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
           {notifications.map((item) => (
             <div
               key={item.id}
-              className={`p-3.5 rounded-[18px] border transition-all ${
+              className={`p-3.5 rounded-[20px] transition-all ${
                 item.read
-                  ? 'bg-white border-gray-100 text-gray-600'
-                  : 'bg-[#fbfaff] border-[#e4dcfa] text-gray-900 shadow-xs'
+                  ? 'bg-white/80 text-gray-600 shadow-2xs'
+                  : 'bg-[#fbfaff] text-gray-900 shadow-xs'
               }`}
             >
               <div className="flex items-start gap-3">

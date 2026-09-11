@@ -15,7 +15,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
     <section className="px-5 py-2">
       <div
         id="card-current-appointment"
-        className="bg-white border border-[#e3dbfc] rounded-[22px] p-5 shadow-[0_2px_12px_rgba(108,44,245,0.04)] transition-all hover:border-[#cfbffb]"
+        className="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all hover:shadow-[0_6px_24px_rgba(108,44,245,0.07)]"
       >
         {/* Top Status Row */}
         <div className="flex items-center justify-between">
@@ -35,7 +35,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           </div>
 
           {/* D-Day badge on right */}
-          <div className="border border-[#c6b6f9] bg-white text-[#6c2cf5] text-[12px] font-semibold px-2.5 py-0.5 rounded-full">
+          <div className="bg-[#f0edff] text-[#6c2cf5] text-[12px] font-semibold px-2.5 py-0.5 rounded-full">
             {appointment.appointmentBadge}
           </div>
         </div>
@@ -57,11 +57,8 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           </div>
         </div>
 
-        {/* Subtle Lavender Divider */}
-        <div className="border-t border-[#f0ebff] my-3.5" />
-
         {/* Bottom CTA to Dashboard */}
-        <div className="flex justify-end">
+        <div className="flex justify-end pt-3">
           <button
             id="btn-open-dashboard"
             onClick={() => onOpenDashboard(appointment)}

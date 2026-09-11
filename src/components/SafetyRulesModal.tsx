@@ -26,7 +26,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-purple-100 text-[#6c2cf5] flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
@@ -48,7 +48,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
         <div className="p-5 space-y-4 text-xs text-gray-700">
           {/* Rule Cards */}
           <div className="space-y-3">
-            <div className="p-3.5 bg-purple-50/70 border border-purple-150 rounded-2xl flex items-start gap-3">
+            <div className="p-3.5 bg-[#f6f4fe] rounded-2xl flex items-start gap-3">
               <span className="w-6 h-6 rounded-full bg-[#6c2cf5] text-white font-bold flex items-center justify-center shrink-0 text-xs">
                 1
               </span>
@@ -60,7 +60,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 bg-purple-50/70 border border-purple-150 rounded-2xl flex items-start gap-3">
+            <div className="p-3.5 bg-[#f6f4fe] rounded-2xl flex items-start gap-3">
               <span className="w-6 h-6 rounded-full bg-[#6c2cf5] text-white font-bold flex items-center justify-center shrink-0 text-xs">
                 2
               </span>
@@ -72,7 +72,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 bg-purple-50/70 border border-purple-150 rounded-2xl flex items-start gap-3">
+            <div className="p-3.5 bg-[#f6f4fe] rounded-2xl flex items-start gap-3">
               <span className="w-6 h-6 rounded-full bg-[#6c2cf5] text-white font-bold flex items-center justify-center shrink-0 text-xs">
                 3
               </span>
@@ -84,7 +84,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 bg-purple-50/70 border border-purple-150 rounded-2xl flex items-start gap-3">
+            <div className="p-3.5 bg-[#f6f4fe] rounded-2xl flex items-start gap-3">
               <span className="w-6 h-6 rounded-full bg-[#6c2cf5] text-white font-bold flex items-center justify-center shrink-0 text-xs">
                 4
               </span>
@@ -96,7 +96,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 bg-purple-50/70 border border-purple-150 rounded-2xl flex items-start gap-3">
+            <div className="p-3.5 bg-[#f6f4fe] rounded-2xl flex items-start gap-3">
               <span className="w-6 h-6 rounded-full bg-[#6c2cf5] text-white font-bold flex items-center justify-center shrink-0 text-xs">
                 5
               </span>
@@ -110,7 +110,7 @@ export const SafetyRulesModal: React.FC<SafetyRulesModalProps> = ({
           </div>
 
           {/* Trust Banner */}
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-2.5">
+          <div className="p-3.5 bg-gray-50 rounded-2xl flex items-center gap-2.5">
             <HeartHandshake className="w-5 h-5 text-[#6c2cf5] shrink-0" />
             <p className="text-[11px] text-gray-600 leading-tight">
               유미당은 본인인증(KYC)과 당도 지표를 통해 신뢰할 수 있는 이웃 문화를 함께 만들어갑니다.

@@ -10,6 +10,7 @@ interface DashboardModalProps {
   onOpenSafetyRules?: () => void;
   onOpenReport?: () => void;
   onSendArrivalNotice?: () => void;
+  onOpenReview?: () => void;
 }
 
 export const DashboardModal: React.FC<DashboardModalProps> = ({
@@ -20,6 +21,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
   onOpenSafetyRules,
   onOpenReport,
   onSendArrivalNotice,
+  onOpenReview,
 }) => {
   if (!isOpen || !appointment) return null;
 
@@ -30,7 +32,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header bar */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-pulse" />
             <h3 className="text-[17px] font-bold text-gray-900">참여 대시보드</h3>
@@ -46,12 +48,12 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
         {/* Content */}
         <div className="p-5 space-y-4 text-left">
           {/* Status & D-day Banner */}
-          <div className="bg-gradient-to-r from-[#6c2cf5]/10 to-[#8b5cf6]/10 border border-[#e3dbfc] rounded-[18px] p-4 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-[#6c2cf5]/10 to-[#8b5cf6]/10 rounded-[22px] p-4 flex items-center justify-between">
             <div>
-              <span className="text-[12px] font-bold text-[#6c2cf5] bg-[#6c2cf5]/15 px-2 py-0.5 rounded-full">
+              <span className="text-[12px] font-bold text-[#6c2cf5] bg-white/80 px-2.5 py-0.5 rounded-full shadow-2xs">
                 {appointment.status} (1:1 확정)
               </span>
-              <p className="text-[18px] font-extrabold text-gray-900 mt-1">
+              <p className="text-[18px] font-extrabold text-gray-900 mt-1.5">
                 약속까지 단 {appointment.dDay} 남았어요!
               </p>
             </div>
@@ -68,7 +70,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           </div>
 
           {/* Date and Location Card */}
-          <div className="bg-[#f8f9fc] rounded-[18px] p-4 space-y-3 border border-gray-100">
+          <div className="bg-[#f8f9fc] rounded-[22px] p-4 space-y-3">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-xl bg-white text-[#6c2cf5] shadow-xs">
                 <Clock className="w-4 h-4" />
@@ -92,18 +94,18 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           </div>
 
           {/* Partner Profile Card */}
-          <div className="border border-[#edf0f5] rounded-[18px] p-4">
+          <div className="bg-white rounded-[22px] p-4 shadow-xs">
             <div className="text-xs font-semibold text-gray-500 mb-2.5">함께할 이웃</div>
             <div className="flex items-center gap-3.5">
               <img
                 src={appointment.partnerAvatar}
                 alt={appointment.partnerName}
-                className="w-13 h-13 rounded-full object-cover border-2 border-white shadow-xs"
+                className="w-13 h-13 rounded-full object-cover shadow-2xs"
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-[16px] text-gray-900">{appointment.partnerName}</span>
-                  <div className="flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded text-amber-600 text-xs font-bold">
+                  <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-0.5 rounded-lg text-amber-600 text-xs font-bold">
                     <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                     <span>당도 99 🍯</span>
                   </div>
@@ -115,7 +117,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             </div>
 
             {/* Menu recommendation */}
-            <div className="mt-3.5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600">
+            <div className="mt-3.5 pt-3 flex items-center justify-between text-xs text-gray-600">
               <span className="text-gray-500">추천 식사 메뉴:</span>
               <span className="font-semibold text-gray-800">{appointment.menuRecommendation}</span>
             </div>
@@ -131,7 +133,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                   alert("상대방에게 '10분 내 도착 예정입니다!' 안심 알림을 전송했습니다.");
                 }
               }}
-              className="w-full py-2.5 px-3 bg-purple-50 hover:bg-purple-100 text-[#6c2cf5] border border-purple-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full py-3 px-3 bg-[#f0edff] hover:bg-[#e4dcfa] text-[#6c2cf5] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
             >
               <BellRing className="w-3.5 h-3.5" />
               <span>[10분 전] 도착 예정 안심 알림 전송하기</span>
@@ -140,14 +142,14 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={onOpenSafetyRules}
-                className="py-2.5 px-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl font-bold text-xs text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2.5 px-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>안심 5대 수칙</span>
               </button>
               <button
                 onClick={onOpenReport}
-                className="py-2.5 px-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl font-bold text-xs text-red-700 flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2.5 px-3 bg-red-50 hover:bg-red-100 rounded-xl font-bold text-xs text-red-700 flex items-center justify-center gap-1.5 transition-colors"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
                 <span>노쇼 / 비매너 신고</span>
@@ -157,28 +159,42 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
 
           {/* Action Buttons */}
           <div className="space-y-2 pt-2 pb-2">
+            {/* Phase 5: Meetup Completion & Mutual Review CTA */}
+            {onOpenReview && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenReview();
+                }}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#6c2cf5] to-[#8b5cf6] text-white rounded-[16px] font-bold text-[15px] flex items-center justify-center gap-2 shadow-md shadow-purple-500/25 active:scale-98 transition-all"
+              >
+                <Star className="w-5 h-5 fill-amber-300 text-amber-300" />
+                <span>동행이 잘 끝났어요 (블라인드 평가 & 당도 정산)</span>
+              </button>
+            )}
+
             <button
               onClick={() => {
                 onClose();
                 onOpenChat();
               }}
-              className="w-full py-3.5 px-4 bg-[#6c2cf5] hover:bg-[#5820d8] text-white rounded-[16px] font-bold text-[15px] flex items-center justify-center gap-2 shadow-md shadow-purple-500/20 active:scale-98 transition-all"
+              className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-[16px] font-bold text-[14px] flex items-center justify-center gap-2 active:scale-98 transition-all"
             >
-              <MessageCircle className="w-5 h-5" />
+              <MessageCircle className="w-4 h-4 text-[#6c2cf5]" />
               <span>동행 대화방 바로가기</span>
             </button>
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => alert('약속 장소 길찾기 지도 앱으로 연결됩니다.')}
-                className="py-3 px-3 border border-gray-200 hover:bg-gray-50 rounded-[14px] font-semibold text-[13px] text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
+                className="py-3 px-3 bg-gray-100 hover:bg-gray-200 rounded-[14px] font-semibold text-[13px] text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Navigation className="w-4 h-4 text-gray-500" />
                 <span>장소 길찾기</span>
               </button>
               <button
                 onClick={() => alert('약속 링크가 클립보드에 복사되었습니다.')}
-                className="py-3 px-3 border border-gray-200 hover:bg-gray-50 rounded-[14px] font-semibold text-[13px] text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
+                className="py-3 px-3 bg-gray-100 hover:bg-gray-200 rounded-[14px] font-semibold text-[13px] text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Share2 className="w-4 h-4 text-gray-500" />
                 <span>동행 공유하기</span>

@@ -41,13 +41,13 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
 
       {/* Search Input */}
       <div className="relative mb-3.5">
-        <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+        <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
         <input
           type="text"
           placeholder="동네 이름, 관심사(브런치, 전시, 산책 등) 검색"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-[14px] text-xs focus:outline-none focus:border-[#6c2cf5]"
+          className="w-full pl-10 pr-4 py-3 bg-white rounded-2xl text-xs text-gray-800 placeholder-gray-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-200 transition-all"
         />
       </div>
 
@@ -57,10 +57,10 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
           <button
             key={n}
             onClick={() => setSelectedNeighborhood(n)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
               selectedNeighborhood === n
                 ? 'bg-[#6c2cf5] text-white shadow-xs'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                : 'bg-white text-gray-600 hover:bg-gray-50 shadow-2xs'
             }`}
           >
             {n}
@@ -69,14 +69,14 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
       </div>
 
       {/* Map Illustration / Visual */}
-      <div className="relative h-32 rounded-[20px] overflow-hidden mb-4 border border-gray-200 bg-[#e9eef6] flex items-center justify-center">
+      <div className="relative h-32 rounded-3xl overflow-hidden mb-4 bg-gradient-to-br from-[#ebf0fa] to-[#e4eaf8] flex items-center justify-center shadow-xs">
         <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:12px_12px]" />
         <div className="relative text-center z-10">
           <div className="w-10 h-10 mx-auto rounded-full bg-[#6c2cf5] text-white flex items-center justify-center shadow-lg animate-bounce">
             <MapPin className="w-5 h-5" />
           </div>
-          <span className="text-[12px] font-bold text-gray-800 mt-1 inline-block bg-white/90 px-3 py-1 rounded-full shadow-xs">
-            대치동 반경 3km 내 8개의 동행 모임
+          <span className="text-[12px] font-bold text-gray-800 mt-1.5 inline-block bg-white/95 px-3.5 py-1 rounded-full shadow-xs">
+            대치동 반경 3km 내 8개의 1:1 동행
           </span>
         </div>
       </div>
@@ -87,16 +87,23 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
           <div
             key={post.id}
             onClick={() => onSelectPost(post)}
-            className="p-4 bg-white border border-gray-150 rounded-[20px] hover:border-[#6c2cf5] transition-all cursor-pointer shadow-xs"
+            className="p-5 bg-white rounded-3xl hover:shadow-md transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.03)] space-y-3 group"
           >
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
-                {post.category}
-              </span>
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-[#6c2cf5] bg-[#f0edff] px-2.5 py-0.5 rounded-full">
+                  {post.category}
+                </span>
+                {post.companionType === 'pro' && (
+                  <span className="font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full text-[10.5px]">
+                    💎 PRO {post.proDetails ? `${post.proDetails.hourlyRate.toLocaleString()}원/h` : ''}
+                  </span>
+                )}
+              </div>
               <span
-                className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
+                className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] ${
                   post.status === 'closed' || post.currentMembers >= 2
-                    ? 'bg-gray-100 text-gray-500'
+                    ? 'bg-gray-100 text-gray-400'
                     : 'bg-purple-50 text-[#6c2cf5]'
                 }`}
               >
@@ -106,31 +113,32 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
               </span>
             </div>
 
-            <h4 className="font-bold text-[15px] text-gray-900 leading-snug mb-2">
+            <h4 className="font-bold text-[16px] text-gray-900 leading-snug group-hover:text-[#6c2cf5] transition-colors">
               {post.title}
             </h4>
 
-            <div className="space-y-1 text-xs text-gray-600">
-              <div className="flex items-center gap-1.5">
+            <div className="space-y-1.5 text-xs text-gray-500">
+              <div className="flex items-center gap-2">
                 <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                <span>{post.time}</span>
+                <span className="text-gray-700 font-medium">{post.time}</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                <span>{post.location}</span>
+                <span className="text-gray-700 truncate">{post.location}</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100 text-xs">
+            <div className="flex items-center justify-between pt-2 text-xs">
               <div className="flex items-center gap-2">
                 <img
                   src={post.avatar}
                   alt={post.author}
-                  className="w-5 h-5 rounded-full object-cover"
+                  className="w-6 h-6 rounded-full object-cover shadow-2xs"
                 />
-                <span className="font-medium text-gray-700">{post.author}</span>
+                <span className="font-bold text-gray-800">{post.author}</span>
+                <span className="text-[#6c2cf5] font-semibold text-[11px]">당도 99 🍯</span>
               </div>
-              <span className="font-bold text-[#6c2cf5]">상세보기 &gt;</span>
+              <span className="font-bold text-[#6c2cf5] hover:underline">상세보기 &gt;</span>
             </div>
           </div>
         ))}

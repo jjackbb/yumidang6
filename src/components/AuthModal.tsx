@@ -111,7 +111,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-[#6c2cf5] flex items-center justify-center text-white">
               <ShieldCheck className="w-4 h-4" />
@@ -141,7 +141,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         {step === 'terms' && (
           <div className="p-5 space-y-4">
             <div className="text-center py-2">
-              <div className="w-12 h-12 rounded-2xl bg-[#f0edff] text-[#6c2cf5] flex items-center justify-center mx-auto mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#6c2cf5] flex items-center justify-center mx-auto mb-2.5 shadow-2xs">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <h4 className="text-[17px] font-bold text-gray-900">안전한 1:1 동행을 위해</h4>
@@ -151,9 +151,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             </div>
 
             {/* Agreement Box */}
-            <div className="space-y-3 bg-[#f8f9fc] p-4 rounded-2xl border border-gray-100">
+            <div className="space-y-3 bg-[#f8f9fc] p-4 rounded-2xl">
               {/* All Agree */}
-              <label className="flex items-center gap-3 pb-3 border-b border-gray-200 cursor-pointer font-bold text-sm text-gray-900">
+              <label className="flex items-center gap-3 pb-3 border-b border-gray-200/50 cursor-pointer font-bold text-sm text-gray-900">
                 <input
                   type="checkbox"
                   checked={allAgreed}
@@ -245,7 +245,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   placeholder="010-0000-0000"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6c2cf5]"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
                 />
                 <button
                   type="button"
@@ -275,7 +275,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                     placeholder="인증번호 6자리 입력"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm tracking-widest font-mono focus:outline-none focus:border-[#6c2cf5]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm tracking-widest font-mono focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
                   />
                   <button
                     type="button"
@@ -296,7 +296,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             )}
 
             {/* Policy Notice Box */}
-            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+            <div className="p-3.5 bg-amber-50 rounded-2xl text-[11px] text-amber-900 leading-relaxed">
               <span className="font-bold block mb-0.5">💡 본인확인 정책 안내</span>
               현재 프로토타입에서는 휴대폰 SMS 인증으로 진행되며, 정식 서비스에서는 보다 완벽한 신원 보증을 위해 <strong>1원 계좌 인증</strong>으로 전환될 예정입니다.
             </div>
@@ -335,7 +335,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 placeholder="실명을 입력해주세요 (예: 조유미)"
                 value={realName}
                 onChange={(e) => setRealName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6c2cf5]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
               />
               <p className="text-[11px] text-gray-400 mt-1">
                 * 유미당 안심 실명제에 따라 타인에게는 가운데 글자가 마스킹된 <strong>'{maskRealName(realName) || '조*미'}'</strong> 형태로만 안전하게 공개됩니다.
@@ -352,7 +352,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 placeholder="예: 다정한이웃"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6c2cf5]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
               />
             </div>
 
@@ -368,10 +368,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                       type="button"
                       key={g}
                       onClick={() => setGender(g)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                         gender === g
-                          ? 'border-[#6c2cf5] bg-[#f0edff] text-[#6c2cf5]'
-                          : 'border-gray-200 text-gray-600'
+                          ? 'bg-[#f0edff] text-[#6c2cf5]'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
                       {g === 'female' ? '여성' : '남성'}
@@ -387,7 +387,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 <select
                   value={ageGroup}
                   onChange={(e) => setAgeGroup(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-[#6c2cf5]"
+                  className="w-full px-3.5 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
                 >
                   <option value="20대">20대</option>
                   <option value="30대">30대</option>
@@ -398,7 +398,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             </div>
 
             {/* Initial Sugar Content Notice */}
-            <div className="p-3 bg-[#f8f6ff] border border-[#e0d6fa] rounded-xl flex items-center justify-between text-xs">
+            <div className="p-3.5 bg-[#f8f6ff] rounded-2xl flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-base">🍯</span>
                 <div>
@@ -406,7 +406,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   <span className="text-[11px] text-gray-500">동행 완료 후 상호 평가로 상승합니다</span>
                 </div>
               </div>
-              <span className="font-extrabold text-[#6c2cf5] text-sm bg-white px-2.5 py-1 rounded-lg border border-[#ded6fb]">
+              <span className="font-extrabold text-[#6c2cf5] text-sm bg-white px-2.5 py-1 rounded-lg shadow-2xs">
                 50 🍯
               </span>
             </div>

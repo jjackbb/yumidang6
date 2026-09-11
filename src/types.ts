@@ -8,6 +8,32 @@ export interface EventBannerItem {
   tag: string;
 }
 
+export type CompanionType = 'free' | 'pro';
+
+export interface ProDetails {
+  hourlyRate: number; // 시간당 비용 (예: 25000)
+  specialty: string; // 전문 분야
+  curriculum: string[]; // 커리큘럼 / 활동 순서
+  included: string[]; // 포함 내역
+  excluded: string[]; // 불포함 내역
+  portfolioPhotos?: string[];
+}
+
+export interface EscrowPayment {
+  id: string;
+  appointmentId?: string;
+  postId: string;
+  postTitle: string;
+  hostName: string;
+  requesterName: string;
+  hourlyRate: number;
+  totalHours: number;
+  totalAmount: number;
+  status: 'held' | 'released' | 'refunded'; // held: 에스크로 예치 중, released: 동행완료 후 정산, refunded: 취소/환불
+  paidAt: string;
+  paymentMethod: 'kakaopay' | 'tosspay' | 'card';
+}
+
 export interface Appointment {
   id: string;
   status: string;
@@ -24,6 +50,9 @@ export interface Appointment {
   addressDetail: string;
   confirmedGuests: number;
   totalGuests: number;
+  companionType?: CompanionType;
+  proDetails?: ProDetails;
+  escrowPayment?: EscrowPayment;
 }
 
 export interface CategoryItem {
@@ -63,6 +92,8 @@ export interface MeetupPost {
   tags: string[];
   status: 'recruiting' | 'closed' | 'expired';
   imageUrl?: string;
+  companionType?: CompanionType;
+  proDetails?: ProDetails;
 }
 
 export interface NotificationItem {
@@ -90,6 +121,8 @@ export interface CurrentUser {
   avatar: string;
   bio: string;
   joinedAt: string;
+  isProHost?: boolean;
+  proSpecialty?: string;
 }
 
 export interface JoinRequest {
@@ -113,4 +146,31 @@ export interface ScheduleProposal {
   proposerName: string;
 }
 
+export interface PraiseBadge {
+  id: string;
+  label: string;
+  icon: string;
+  count?: number;
+}
 
+export interface ReviewItem {
+  id: string;
+  appointmentId: string;
+  appointmentTitle: string;
+  reviewerName: string;
+  reviewerAvatar: string;
+  targetName: string;
+  rating: number;
+  badges: string[];
+  comment: string;
+  isBlind: boolean; // 상대방 미제출 시 true (점수/내용 잠김)
+  settledAt?: string;
+  createdAt: string;
+}
+
+export interface SugarHistoryItem {
+  id: string;
+  delta: number;
+  reason: string;
+  date: string;
+}

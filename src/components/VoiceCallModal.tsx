@@ -67,11 +67,11 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
       <div
-        className="bg-gradient-to-b from-gray-900 to-[#1e1338] text-white w-full max-w-[360px] rounded-[32px] p-6 shadow-2xl flex flex-col items-center justify-between min-h-[500px] border border-purple-900/40 animate-in zoom-in-95 duration-200"
+        className="bg-gradient-to-b from-gray-900 to-[#1e1338] text-white w-full max-w-[360px] rounded-[36px] p-6 shadow-2xl flex flex-col items-center justify-between min-h-[500px] animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Tag */}
-        <div className="flex items-center gap-1 px-3 py-1 bg-purple-500/20 rounded-full border border-purple-400/30 text-[11px] font-bold text-purple-300">
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-500/20 rounded-full text-[11px] font-bold text-purple-300">
           <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
           <span>안심 번호 보호 1:1 음성 통화</span>
         </div>
@@ -86,7 +86,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
             <img
               src={appointment.partnerAvatar}
               alt={appointment.partnerName}
-              className="w-24 h-24 rounded-full object-cover border-3 border-purple-400/50 shadow-xl relative z-10"
+              className="w-24 h-24 rounded-full object-cover ring-4 ring-purple-500/30 shadow-2xl relative z-10"
             />
           </div>
 
@@ -122,7 +122,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
               onClick={() => setIsMuted((prev) => !prev)}
               className={`p-3.5 rounded-full transition-all ${
                 isMuted
-                  ? 'bg-red-500/30 text-red-400 border border-red-500/50'
+                  ? 'bg-red-500/40 text-red-300'
                   : 'bg-white/10 hover:bg-white/20 text-white'
               }`}
               title="음소거"
@@ -135,7 +135,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({
               onClick={() => setIsSpeaker((prev) => !prev)}
               className={`p-3.5 rounded-full transition-all ${
                 isSpeaker
-                  ? 'bg-purple-500/30 text-purple-300 border border-purple-500/50'
+                  ? 'bg-purple-500/40 text-purple-200'
                   : 'bg-white/10 hover:bg-white/20 text-white'
               }`}
               title="스피커폰"

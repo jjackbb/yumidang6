@@ -36,7 +36,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-[#6c2cf5] text-white flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
@@ -64,7 +64,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
                 프로필에 <strong>[공식 KYC 인증]</strong> 뱃지가 부여되어 상대방에게 최고 수준의 신뢰도를 제공합니다.
               </p>
               <div className="pt-2">
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f0edff] text-[#6c2cf5] text-xs font-bold border border-[#ded6fb]">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f0edff] text-[#6c2cf5] text-xs font-bold shadow-2xs">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>공식 인증회원 뱃지 활성화</span>
                 </span>
@@ -79,7 +79,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
           ) : (
             <>
               {/* Introduction */}
-              <div className="p-4 bg-[#f8f6ff] rounded-2xl border border-[#ded6fb] space-y-2">
+              <div className="p-4 bg-[#f8f6ff] rounded-2xl space-y-2">
                 <div className="flex items-center gap-2 text-[#6c2cf5]">
                   <Sparkles className="w-4 h-4" />
                   <span className="text-xs font-bold">1:1 동행 신뢰 보증 뱃지</span>
@@ -90,7 +90,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
               </div>
 
               {/* Policy & Fee Info */}
-              <div className="space-y-2.5 text-xs text-gray-600 bg-gray-50 p-4 rounded-2xl border border-gray-150">
+              <div className="space-y-3 text-xs text-gray-600 bg-gray-50 p-4 rounded-2xl">
                 <div className="flex items-start gap-2">
                   <CreditCard className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div>
@@ -99,7 +99,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
+                <div className="flex items-start gap-2 pt-2.5">
                   <Lock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <span className="font-bold text-gray-800 block">개인정보 미보관 원칙</span>

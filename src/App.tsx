@@ -23,6 +23,8 @@ import { MatchRequestsModal } from './components/MatchRequestsModal';
 import { SafetyRulesModal } from './components/SafetyRulesModal';
 import { VoiceCallModal } from './components/VoiceCallModal';
 import { ReportModal } from './components/ReportModal';
+import { ReviewModal } from './components/ReviewModal';
+import { EscrowPaymentModal } from './components/EscrowPaymentModal';
 import { ExploreView } from './components/ExploreView';
 import { ChatView } from './components/ChatView';
 import { MyPageView } from './components/MyPageView';
@@ -34,7 +36,7 @@ import {
   mockMeetupPosts,
   mockNotifications,
 } from './data/mockData';
-import { CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest } from './types';
+import { CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment } from './types';
 
 export default function App() {
   // Navigation state
@@ -81,6 +83,57 @@ export default function App() {
   const [isSafetyRulesOpen, setIsSafetyRulesOpen] = useState(false);
   const [isVoiceCallOpen, setIsVoiceCallOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+
+  // Phase 5: Mutual Blind Review & Sugar Settling states
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviews, setReviews] = useState<ReviewItem[]>([
+    {
+      id: 'rev-sample-1',
+      appointmentId: 'apt-sample-1',
+      appointmentTitle: '삼청동 한옥 카페 디저트 투어 1:1 동행',
+      reviewerName: '이*진',
+      reviewerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120',
+      targetName: '나',
+      rating: 5,
+      badges: ['시간 약속을 칼같이 지켜요', '대화가 편안하고 즐거워요'],
+      comment: '처음 해보는 1:1 디저트 투어였는데 너무 친절하게 대해주셔서 어색함 전혀 없이 즐겁게 다녀왔습니다!',
+      isBlind: false,
+      createdAt: '3일 전',
+    },
+    {
+      id: 'rev-sample-2',
+      appointmentId: 'apt-sample-2',
+      appointmentTitle: '주말 성수동 서울숲 산책 1:1 동행',
+      reviewerName: '박*민',
+      reviewerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120',
+      targetName: '나',
+      rating: 5,
+      badges: ['친절하고 배려심이 넘쳐요', '시간 약속을 칼같이 지켜요'],
+      comment: '매너가 정말 좋으세요. 시간 약속도 칼같이 지켜주셔서 덕분에 기분 좋은 하루였습니다.',
+      isBlind: false,
+      createdAt: '1주일 전',
+    },
+  ]);
+
+  // Phase 6: Pro Paid Companion & Escrow States
+  const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
+  const [selectedProPostForEscrow, setSelectedProPostForEscrow] = useState<MeetupPost | null>(null);
+  const [escrowPayments, setEscrowPayments] = useState<EscrowPayment[]>([
+    {
+      id: 'escrow-init-1',
+      postId: 'post-6',
+      postTitle: '[PRO] 성수동 감성 골목 인생샷 스냅 촬영 1:1 동행 📸',
+      hostName: '박*준 (포토그래퍼)',
+      requesterName: '조*미',
+      hourlyRate: 30000,
+      totalHours: 2,
+      totalAmount: 60000,
+      status: 'held',
+      paidAt: '어제',
+      paymentMethod: 'kakaopay',
+    },
+  ]);
+
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([
     {
       id: 'req-init-1',
@@ -399,6 +452,60 @@ export default function App() {
     alert(`${appointment.partnerName}님에게 '약속 장소에 10분 내 도착 예정입니다!' 안심 알림을 전송했습니다.`);
   };
 
+  // Phase 5: Mutual Blind Review Submit & Sugar Settling
+  const handleOpenReview = () => {
+    setIsReviewModalOpen(true);
+  };
+
+  const handleSubmitReview = (reviewPayload: { rating: number; badges: string[]; comment: string }) => {
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        title: '🔒 블라인드 평가 제출 완료',
+        description: `${appointment.partnerName}님과의 동행 평가가 안전하게 잠겼습니다. 상대방이 제출하면 동시 해제됩니다.`,
+        time: '방금',
+        read: false,
+        type: 'matching',
+      },
+      ...prev,
+    ]);
+  };
+
+  const handleSettleSugar = (delta: number, partnerReview: ReviewItem) => {
+    // 1. 당도 정수형 가산
+    setCurrentUser((prev) => {
+      if (!prev) return null;
+      const nextSugar = Math.min(100, Math.round(prev.sugarContent + delta));
+      return {
+        ...prev,
+        sugarContent: nextSugar,
+      };
+    });
+
+    // 2. 동행 상태 완료로 전환
+    setAppointment((prev) => ({
+      ...prev,
+      status: '동행 완료',
+      dDay: '완료됨',
+    }));
+
+    // 3. 후기 리스트에 추가
+    setReviews((prev) => [partnerReview, ...prev]);
+
+    // 4. 시스템 알림 발송
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        title: `🍯 당도 정산 완료 (+${delta} 🍯 상승!)`,
+        description: `양측 블라인드 평가가 동시 해제되었습니다! ${appointment.partnerName}님이 칭찬 뱃지를 선물했습니다.`,
+        time: '방금',
+        read: false,
+        type: 'matching',
+      },
+      ...prev,
+    ]);
+  };
+
   const handleAuthSuccess = (newUser: CurrentUser) => {
     setCurrentUser(newUser);
     setNotifications((prev) => [
@@ -433,6 +540,59 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+  };
+
+  // Phase 6: Pro Escrow Payment Handlers
+  const handleOpenEscrow = (post: MeetupPost) => {
+    setSelectedPostForDetail(null);
+    setSelectedProPostForEscrow(post);
+    setIsEscrowModalOpen(true);
+  };
+
+  const handleCompleteEscrowPayment = (payment: EscrowPayment, post: MeetupPost) => {
+    setEscrowPayments((prev) => [payment, ...prev]);
+
+    // 1:1 매칭 확정 (2/2명 잠금)
+    setMeetupPosts((prev) =>
+      prev.map((p) =>
+        p.id === post.id ? { ...p, currentMembers: 2, status: 'closed' } : p
+      )
+    );
+
+    // 약속 카드 갱신
+    setAppointment({
+      id: 'apt-' + Date.now(),
+      status: '매칭완료',
+      dDay: 'D-2',
+      appointmentBadge: 'PRO 1:1 확정',
+      title: post.title,
+      dateTime: post.time,
+      location: post.location,
+      partnerName: post.author,
+      partnerAvatar: post.avatar,
+      partnerRating: 5.0,
+      partnerBio: `PRO 전문 동행 호스트 (${post.proDetails?.specialty || '전문 동행'})`,
+      menuRecommendation: post.category,
+      addressDetail: post.secretLocation || post.location,
+      confirmedGuests: 2,
+      totalGuests: 2,
+      companionType: 'pro',
+      proDetails: post.proDetails,
+      escrowPayment: payment,
+    });
+
+    // 알림 추가
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        title: '💎 [PRO] 1:1 안심 에스크로 결제 및 매칭 확정!',
+        description: `[${post.author}] 님과의 1:1 동행 (${payment.totalHours}시간)이 확정되었습니다. 결제 금액(${payment.totalAmount.toLocaleString()}원)은 안전하게 예치되었습니다.`,
+        time: '방금',
+        read: false,
+        type: 'matching',
+      },
+      ...prev,
+    ]);
   };
 
   return (
@@ -521,6 +681,7 @@ export default function App() {
               onOpenVoiceCall={() => setIsVoiceCallOpen(true)}
               onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
               onOpenReport={() => setIsReportOpen(true)}
+              onOpenReview={handleOpenReview}
             />
           </div>
         )}
@@ -535,6 +696,8 @@ export default function App() {
               onOpenAuth={() => setIsAuthModalOpen(true)}
               onOpenKyc={() => setIsKycModalOpen(true)}
               onLogout={handleLogout}
+              reviews={reviews}
+              escrowPayments={escrowPayments}
             />
           </div>
         )}
@@ -558,6 +721,7 @@ export default function App() {
           onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
           onOpenReport={() => setIsReportOpen(true)}
           onSendArrivalNotice={handleSendArrivalNotice}
+          onOpenReview={handleOpenReview}
         />
 
         {/* Modal: 이벤트 상세 & 불꽃축제 동행 모임 */}
@@ -599,6 +763,7 @@ export default function App() {
           onClose={() => setSelectedPostForDetail(null)}
           currentUser={currentUser}
           onJoinMeetup={handleStartJoinRequest}
+          onOpenEscrow={handleOpenEscrow}
           onEditPost={handleEditPost}
           onClosePost={handleClosePost}
           onDeletePost={handleDeletePost}
@@ -668,6 +833,27 @@ export default function App() {
           onClose={() => setIsKycModalOpen(false)}
           isAlreadyVerified={currentUser?.isKycVerified || false}
           onKycSuccess={handleKycSuccess}
+        />
+
+        {/* Phase 5 Modal: 상호 블라인드 평가 및 실시간 당도 정산 모달 */}
+        <ReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          appointment={appointment}
+          onSubmitReview={handleSubmitReview}
+          onSettleSugar={handleSettleSugar}
+        />
+
+        {/* Phase 6 Modal: PRO 1:1 안심 에스크로 결제 모달 */}
+        <EscrowPaymentModal
+          isOpen={isEscrowModalOpen}
+          onClose={() => {
+            setIsEscrowModalOpen(false);
+            setSelectedProPostForEscrow(null);
+          }}
+          post={selectedProPostForEscrow}
+          currentUser={currentUser}
+          onPaymentSuccess={handleCompleteEscrowPayment}
         />
       </main>
     </div>

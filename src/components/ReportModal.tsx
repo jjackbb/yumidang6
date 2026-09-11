@@ -39,7 +39,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between border-b border-gray-100 z-10">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
               <ShieldAlert className="w-4 h-4" />
@@ -70,19 +70,19 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
             {/* Target Partner Info */}
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between text-xs">
+            <div className="p-3.5 bg-[#f8f9fc] rounded-2xl flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <img
                   src={appointment.partnerAvatar}
                   alt={appointment.partnerName}
-                  className="w-8 h-8 rounded-full object-cover"
+                  className="w-8 h-8 rounded-full object-cover shadow-2xs"
                 />
                 <div>
                   <span className="font-bold text-gray-900">{appointment.partnerName}</span>
                   <span className="text-[11px] text-gray-500 block">{appointment.title}</span>
                 </div>
               </div>
-              <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2.5 py-0.5 rounded-full">
                 신고 대상
               </span>
             </div>
@@ -92,10 +92,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <label className="block text-xs font-bold text-gray-800 mb-2">신고 사유 선택</label>
               <div className="space-y-2">
                 <label
-                  className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex items-start gap-2.5 p-3.5 rounded-2xl cursor-pointer transition-all ${
                     reportType === 'noshow'
-                      ? 'border-red-500 bg-red-50/50 text-red-950 font-semibold'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'bg-red-50 text-red-950 font-semibold ring-1.5 ring-red-500'
+                      : 'bg-gray-50/80 hover:bg-gray-100 text-gray-700'
                   }`}
                 >
                   <input
@@ -118,10 +118,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </label>
 
                 <label
-                  className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex items-start gap-2.5 p-3.5 rounded-2xl cursor-pointer transition-all ${
                     reportType === 'harassment'
-                      ? 'border-red-500 bg-red-50/50 text-red-950 font-semibold'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'bg-red-50 text-red-950 font-semibold ring-1.5 ring-red-500'
+                      : 'bg-gray-50/80 hover:bg-gray-100 text-gray-700'
                   }`}
                 >
                   <input
@@ -141,10 +141,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </label>
 
                 <label
-                  className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex items-start gap-2.5 p-3.5 rounded-2xl cursor-pointer transition-all ${
                     reportType === 'commercial'
-                      ? 'border-red-500 bg-red-50/50 text-red-950 font-semibold'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'bg-red-50 text-red-950 font-semibold ring-1.5 ring-red-500'
+                      : 'bg-gray-50/80 hover:bg-gray-100 text-gray-700'
                   }`}
                 >
                   <input
@@ -164,10 +164,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </label>
 
                 <label
-                  className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex items-start gap-2.5 p-3.5 rounded-2xl cursor-pointer transition-all ${
                     reportType === 'danger'
-                      ? 'border-red-500 bg-red-50/50 text-red-950 font-semibold'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'bg-red-50 text-red-950 font-semibold ring-1.5 ring-red-500'
+                      : 'bg-gray-50/80 hover:bg-gray-100 text-gray-700'
                   }`}
                 >
                   <input
@@ -198,12 +198,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 placeholder="상황을 구체적으로 기재해주시면 더욱 신속하게 처리됩니다."
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-red-500 resize-none"
+                className="w-full px-3.5 py-2.5 bg-gray-50 rounded-xl text-xs focus:outline-none focus:bg-white focus:ring-1.5 focus:ring-red-500 resize-none text-gray-900"
               />
             </div>
 
             {/* Police Alert Quick Call */}
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs text-red-800">
+            <div className="p-3.5 bg-red-50 rounded-2xl flex items-center justify-between text-xs text-red-800">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
                 <span className="font-bold">지금 당장 위급하신가요?</span>
@@ -211,7 +211,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <button
                 type="button"
                 onClick={() => alert('경찰청 112 긴급 전화 연결 시뮬레이션입니다.')}
-                className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg text-xs hover:bg-red-700 transition-colors flex items-center gap-1"
+                className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg text-xs hover:bg-red-700 transition-colors flex items-center gap-1 shadow-xs"
               >
                 <PhoneCall className="w-3 h-3" />
                 112 긴급 신고
