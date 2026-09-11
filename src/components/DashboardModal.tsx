@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Clock, MapPin, Share2, Calendar, MessageCircle, Star, Navigation } from 'lucide-react';
+import { X, Clock, MapPin, Share2, Calendar, MessageCircle, Star, Navigation, ShieldCheck, ShieldAlert, BellRing } from 'lucide-react';
 import { Appointment } from '../types';
 
 interface DashboardModalProps {
@@ -7,6 +7,9 @@ interface DashboardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenChat: () => void;
+  onOpenSafetyRules?: () => void;
+  onOpenReport?: () => void;
+  onSendArrivalNotice?: () => void;
 }
 
 export const DashboardModal: React.FC<DashboardModalProps> = ({
@@ -14,6 +17,9 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
   isOpen,
   onClose,
   onOpenChat,
+  onOpenSafetyRules,
+  onOpenReport,
+  onSendArrivalNotice,
 }) => {
   if (!isOpen || !appointment) return null;
 
@@ -43,7 +49,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           <div className="bg-gradient-to-r from-[#6c2cf5]/10 to-[#8b5cf6]/10 border border-[#e3dbfc] rounded-[18px] p-4 flex items-center justify-between">
             <div>
               <span className="text-[12px] font-bold text-[#6c2cf5] bg-[#6c2cf5]/15 px-2 py-0.5 rounded-full">
-                {appointment.status}
+                {appointment.status} (1:1 확정)
               </span>
               <p className="text-[18px] font-extrabold text-gray-900 mt-1">
                 약속까지 단 {appointment.dDay} 남았어요!
@@ -99,7 +105,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                   <span className="font-bold text-[16px] text-gray-900">{appointment.partnerName}</span>
                   <div className="flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded text-amber-600 text-xs font-bold">
                     <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                    <span>{appointment.partnerRating}</span>
+                    <span>당도 99.2 🍯</span>
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">
@@ -112,6 +118,40 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             <div className="mt-3.5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600">
               <span className="text-gray-500">추천 식사 메뉴:</span>
               <span className="font-semibold text-gray-800">{appointment.menuRecommendation}</span>
+            </div>
+          </div>
+
+          {/* Safety & Arrival Notice Bar (Phase 4) */}
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                if (onSendArrivalNotice) {
+                  onSendArrivalNotice();
+                } else {
+                  alert("상대방에게 '10분 내 도착 예정입니다!' 안심 알림을 전송했습니다.");
+                }
+              }}
+              className="w-full py-2.5 px-3 bg-purple-50 hover:bg-purple-100 text-[#6c2cf5] border border-purple-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              <span>[10분 전] 도착 예정 안심 알림 전송하기</span>
+            </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onOpenSafetyRules}
+                className="py-2.5 px-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl font-bold text-xs text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>안심 5대 수칙</span>
+              </button>
+              <button
+                onClick={onOpenReport}
+                className="py-2.5 px-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl font-bold text-xs text-red-700 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
+                <span>노쇼 / 비매너 신고</span>
+              </button>
             </div>
           </div>
 
@@ -150,3 +190,4 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
     </div>
   );
 };
+

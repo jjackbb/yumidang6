@@ -20,6 +20,9 @@ import { KycAuthModal } from './components/KycAuthModal';
 import { PostDetailModal } from './components/PostDetailModal';
 import { JoinRequestModal } from './components/JoinRequestModal';
 import { MatchRequestsModal } from './components/MatchRequestsModal';
+import { SafetyRulesModal } from './components/SafetyRulesModal';
+import { VoiceCallModal } from './components/VoiceCallModal';
+import { ReportModal } from './components/ReportModal';
 import { ExploreView } from './components/ExploreView';
 import { ChatView } from './components/ChatView';
 import { MyPageView } from './components/MyPageView';
@@ -73,6 +76,11 @@ export default function App() {
   const [isJoinRequestModalOpen, setIsJoinRequestModalOpen] = useState(false);
   const [selectedPostForJoin, setSelectedPostForJoin] = useState<MeetupPost | null>(null);
   const [isMatchRequestsOpen, setIsMatchRequestsOpen] = useState(false);
+
+  // Phase 4: Safety, Voice Call & Emergency Report states
+  const [isSafetyRulesOpen, setIsSafetyRulesOpen] = useState(false);
+  const [isVoiceCallOpen, setIsVoiceCallOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([
     {
       id: 'req-init-1',
@@ -352,6 +360,45 @@ export default function App() {
     ]);
   };
 
+  // Phase 4: Handle Emergency / No-Show Report Submit
+  const handleReportSubmit = (reasonType: string, details: string) => {
+    const reasonMap: Record<string, string> = {
+      noshow: '20분 이상 미출현 (노쇼 발생)',
+      harassment: '불쾌한 언행 / 비매너 / 성희롱',
+      commercial: '금전 요구 / 상업적 영업 / 종교 포교',
+      danger: '위급 상황 / 신변 위협 (긴급 SOS)',
+    };
+    const reasonLabel = reasonMap[reasonType] || reasonType;
+
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        title: `🚨 [신고 접수] ${reasonLabel}`,
+        description: `${appointment.partnerName} 회원에 대한 신고가 안전센터에 접수되었습니다. 상대방의 당도 패널티(-20 Brix) 검토 및 운영진 조사가 즉시 시작됩니다.`,
+        time: '방금',
+        read: false,
+        type: 'matching',
+      },
+      ...prev,
+    ]);
+  };
+
+  // Phase 4: Send 10-minute Arrival Notice
+  const handleSendArrivalNotice = () => {
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        title: '🔔 도착 예정 안심 알림 발송',
+        description: `${appointment.partnerName}님에게 '약속 장소에 10분 내 도착 예정입니다!' 메시지를 전달했습니다.`,
+        time: '방금',
+        read: false,
+        type: 'chat',
+      },
+      ...prev,
+    ]);
+    alert(`${appointment.partnerName}님에게 '약속 장소에 10분 내 도착 예정입니다!' 안심 알림을 전송했습니다.`);
+  };
+
   const handleAuthSuccess = (newUser: CurrentUser) => {
     setCurrentUser(newUser);
     setNotifications((prev) => [
@@ -471,6 +518,9 @@ export default function App() {
               appointment={appointment}
               onOpenDashboard={() => setIsDashboardOpen(true)}
               onUpdateAppointment={handleUpdateAppointment}
+              onOpenVoiceCall={() => setIsVoiceCallOpen(true)}
+              onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
+              onOpenReport={() => setIsReportOpen(true)}
             />
           </div>
         )}
@@ -505,6 +555,9 @@ export default function App() {
             setIsDashboardOpen(false);
             setActiveTab('chat');
           }}
+          onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
+          onOpenReport={() => setIsReportOpen(true)}
+          onSendArrivalNotice={handleSendArrivalNotice}
         />
 
         {/* Modal: 이벤트 상세 & 불꽃축제 동행 모임 */}
@@ -571,6 +624,27 @@ export default function App() {
           requests={joinRequests}
           onAccept={handleAcceptRequest}
           onReject={handleRejectRequest}
+        />
+
+        {/* Phase 4 Modal: 안심 안전 5대 수칙 모달 */}
+        <SafetyRulesModal
+          isOpen={isSafetyRulesOpen}
+          onClose={() => setIsSafetyRulesOpen(false)}
+        />
+
+        {/* Phase 4 Modal: 1:1 가상 안심 음성 통화 모달 */}
+        <VoiceCallModal
+          isOpen={isVoiceCallOpen}
+          onClose={() => setIsVoiceCallOpen(false)}
+          appointment={appointment}
+        />
+
+        {/* Phase 4 Modal: 긴급 신고 및 노쇼(No-Show) 센터 모달 */}
+        <ReportModal
+          isOpen={isReportOpen}
+          onClose={() => setIsReportOpen(false)}
+          appointment={appointment}
+          onSubmitReport={handleReportSubmit}
         />
 
         {/* Modal: 알림 창 */}

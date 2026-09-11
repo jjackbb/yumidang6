@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Send, MapPin, Clock, CheckCheck, Info, CalendarClock, Check, X, Sparkles } from 'lucide-react';
+import { Send, MapPin, Clock, CheckCheck, Info, CalendarClock, Check, X, Sparkles, PhoneCall, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Appointment, ScheduleProposal } from '../types';
 
 interface ChatViewProps {
   appointment: Appointment;
   onOpenDashboard: () => void;
   onUpdateAppointment?: (newSchedule: { dateTime: string; location: string }) => void;
+  onOpenVoiceCall?: () => void;
+  onOpenSafetyRules?: () => void;
+  onOpenReport?: () => void;
 }
 
 interface Message {
@@ -20,6 +23,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   appointment,
   onOpenDashboard,
   onUpdateAppointment,
+  onOpenVoiceCall,
+  onOpenSafetyRules,
+  onOpenReport,
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -189,8 +195,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   return (
     <div className="flex flex-col h-[calc(100vh-70px)] bg-[#f6f7fb] text-left">
       {/* Top Partner Header */}
-      <div className="bg-white px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="bg-white px-3.5 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
           <div className="relative">
             <img
               src={appointment.partnerAvatar}
@@ -201,30 +207,63 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="font-bold text-[15px] text-gray-900">{appointment.partnerName}</h3>
-              <span className="text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] px-1.5 py-0.5 rounded">
+              <h3 className="font-bold text-[14.5px] text-gray-900">{appointment.partnerName}</h3>
+              <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-1.5 py-0.5 rounded">
                 1:1 동행
               </span>
             </div>
-            <p className="text-xs text-gray-500">당도 99.2 🍯 • 1:1 안심 조율방</p>
+            <p className="text-[11px] text-gray-500">당도 99.2 🍯 • 안심 조율방</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        {/* Action Button Group */}
+        <div className="flex items-center gap-1">
+          {/* Voice Call Simulation Button */}
+          {onOpenVoiceCall && (
+            <button
+              onClick={onOpenVoiceCall}
+              title="안심 음성 통화"
+              className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors active:scale-95"
+            >
+              <PhoneCall className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Safety Rules Button */}
+          {onOpenSafetyRules && (
+            <button
+              onClick={onOpenSafetyRules}
+              title="안심 안전 5대 수칙"
+              className="p-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-colors active:scale-95"
+            >
+              <ShieldCheck className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Emergency Report Button */}
+          {onOpenReport && (
+            <button
+              onClick={onOpenReport}
+              title="노쇼 및 긴급 신고 센터"
+              className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-95"
+            >
+              <ShieldAlert className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={() => setIsProposalModalOpen(true)}
             className="text-xs font-bold text-[#6c2cf5] bg-[#f0edff] hover:bg-[#e4dcfa] px-2.5 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
           >
             <CalendarClock className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">일정/장소 제안</span>
-            <span className="sm:hidden">제안</span>
+            <span className="hidden sm:inline">제안</span>
           </button>
           <button
             onClick={onOpenDashboard}
             className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
           >
             <Info className="w-3.5 h-3.5" />
-            <span>약속 정보</span>
+            <span className="hidden sm:inline">약속</span>
           </button>
         </div>
       </div>
