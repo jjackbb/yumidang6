@@ -108,6 +108,7 @@ export interface NotificationItem {
 export interface CurrentUser {
   id: string;
   isLoggedIn: boolean;
+  email?: string;
   phone: string;
   realName: string;
   maskedName: string;

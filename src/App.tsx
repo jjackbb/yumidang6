@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
+import { maskRealName } from './utils/maskName';
 import { Header } from './components/Header';
 import { EventBanner } from './components/EventBanner';
 import { AppointmentCard } from './components/AppointmentCard';
@@ -42,24 +44,68 @@ export default function App() {
   // Navigation state
   const [activeTab, setActiveTab] = useState<NavTab>('home');
 
-  // User Auth state (Phase 1)
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>({
-    id: 'user-default',
-    isLoggedIn: true,
-    phone: '010-9876-5432',
-    realName: '조유미',
-    maskedName: '조*미',
-    nickname: '조*미',
-    gender: 'female',
-    ageGroup: '20대',
-    neighborhood: '서울 강남구 대치동',
-    sugarContent: 99,
-    isPhoneVerified: true,
-    isKycVerified: false,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    bio: '브런치와 주말 문화생활을 좋아하는 동행러입니다.',
-    joinedAt: '2026.08',
-  });
+  // User Auth state (Supabase Auth 연동)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  useEffect(() => {
+    // 1. 초기 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const meta = session.user.user_metadata || {};
+        const name = meta.realName || '유미당 회원';
+        const masked = meta.maskedName || maskRealName(name);
+        setCurrentUser({
+          id: session.user.id,
+          isLoggedIn: true,
+          email: session.user.email,
+          phone: session.user.phone || '010-0000-0000',
+          realName: name,
+          maskedName: masked,
+          nickname: masked,
+          gender: meta.gender || 'female',
+          ageGroup: meta.ageGroup || '20대',
+          neighborhood: meta.neighborhood || '서울 강남구 역삼동',
+          sugarContent: 50,
+          isPhoneVerified: false,
+          isKycVerified: false,
+          avatar: meta.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+          bio: meta.bio || '유미당과 함께하는 따뜻한 동행입니다.',
+          joinedAt: '2026.09',
+        });
+      }
+    });
+
+    // 2. Auth 상태 변화 리스너
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const meta = session.user.user_metadata || {};
+        const name = meta.realName || '유미당 회원';
+        const masked = meta.maskedName || maskRealName(name);
+        setCurrentUser({
+          id: session.user.id,
+          isLoggedIn: true,
+          email: session.user.email,
+          phone: session.user.phone || '010-0000-0000',
+          realName: name,
+          maskedName: masked,
+          nickname: masked,
+          gender: meta.gender || 'female',
+          ageGroup: meta.ageGroup || '20대',
+          neighborhood: meta.neighborhood || '서울 강남구 역삼동',
+          sugarContent: 50,
+          isPhoneVerified: false,
+          isKycVerified: false,
+          avatar: meta.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+          bio: meta.bio || '유미당과 함께하는 따뜻한 동행입니다.',
+          joinedAt: '2026.09',
+        });
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Modal states
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -511,7 +557,7 @@ export default function App() {
     setNotifications((prev) => [
       {
         id: 'notif-' + Date.now(),
-        title: '휴대폰 본인인증 완료',
+        title: '로그인 완료',
         description: `${newUser.maskedName}님, 환영합니다! 신뢰할 수 있는 1:1 동행을 시작하세요.`,
         time: '방금',
         read: false,
@@ -538,7 +584,12 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     setCurrentUser(null);
   };
 
