@@ -8,6 +8,7 @@ interface NotificationModalProps {
   notifications: NotificationItem[];
   onMarkAllAsRead: () => void;
   onOpenMatchRequests: (notificationId: string) => void;
+  onOpenRoom: (roomId: string) => void;
 }
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({
@@ -16,11 +17,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   notifications,
   onMarkAllAsRead,
   onOpenMatchRequests,
+  onOpenRoom,
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="알림 목록" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[85vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -40,6 +42,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             </button>
             <button
               onClick={onClose}
+              aria-label="알림 닫기"
               className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -52,6 +55,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
           {notifications.map((item) => (
             <div
               key={item.id}
+              data-notification-id={item.id}
               className={`p-3.5 rounded-[20px] transition-all ${
                 item.read
                   ? 'bg-white/80 text-gray-600 shadow-2xs'
@@ -85,7 +89,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                     {item.description}
                   </p>
-                  {item.action === 'match_requests' && (
+                  {item.roomId && <button onClick={() => onOpenRoom(item.roomId!)} className="mt-2 text-xs font-bold text-[#6c2cf5]">대화 확인하기 →</button>}
+                  {item.action === 'match_requests' && !item.roomId && (
                     <button
                       type="button"
                       onClick={() => onOpenMatchRequests(item.id)}

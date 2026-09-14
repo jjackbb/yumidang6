@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ArrowLeft, ShieldCheck, Star } from 'lucide-react';
 import type { PublicUserProfile } from '../types';
 
-export function UserProfileModal({ profile, onClose }: { profile: PublicUserProfile; onClose: () => void }) {
+export function UserProfileModal({ profile, onClose, backLabel = '공고로 돌아가기' }: { profile: PublicUserProfile; onClose: () => void; backLabel?: string }) {
   const backRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -20,7 +20,7 @@ export function UserProfileModal({ profile, onClose }: { profile: PublicUserProf
     <div className="w-full max-w-[440px] bg-[#f8f9fc] h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto sm:rounded-[28px] text-left shadow-2xl">
       <header className="sticky top-0 bg-white/95 backdrop-blur-md p-4 border-b border-gray-100 z-10">
         <button ref={backRef} onClick={onClose} className="flex items-center gap-2 text-sm font-bold text-gray-800 rounded-lg focus-visible:outline-2 focus-visible:outline-purple-500">
-          <ArrowLeft size={19} /> 공고로 돌아가기
+          <ArrowLeft size={19} /> {backLabel}
         </button>
       </header>
       <div className="p-5 space-y-4">

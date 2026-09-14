@@ -134,6 +134,7 @@ export interface NotificationItem {
   read: boolean;
   type: 'matching' | 'event' | 'chat';
   action?: 'match_requests';
+  roomId?: string;
 }
 
 export interface CurrentUser {
@@ -168,8 +169,28 @@ export interface JoinRequest {
   requesterAvatar: string;
   requesterSugar: number;
   message: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'matched_with_other';
   createdAt: string;
+}
+
+export interface ChatMember { id: string; displayName: string; avatar: string }
+export interface ConversationMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: string;
+  isSample?: boolean;
+  proposal?: ScheduleProposal;
+}
+export interface ChatRoom {
+  id: string;
+  requestId?: string;
+  appointmentId?: string;
+  postId: string;
+  postTitle: string;
+  members: ChatMember[];
+  messages: ConversationMessage[];
+  draft: string;
 }
 
 export interface ScheduleProposal {

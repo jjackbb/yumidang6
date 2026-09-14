@@ -1,8 +1,10 @@
-import type { CurrentUser, MeetupPost, PublicUserProfile } from '../types';
+import type { ChatMember, CurrentUser, MeetupPost, PublicUserProfile } from '../types';
 import { DEMO_USER_ID } from './demoIdentity';
 
 // Explicit prototype fixtures. Missing user data must not turn into a verified profile.
 const samples: Record<string, Pick<PublicUserProfile, 'bio' | 'neighborhood' | 'ageGroup' | 'hobbies' | 'traits' | 'sugarContent'>> = {
+  'user-req-1': { bio: '디저트 카페를 함께 둘러보고 편하게 이야기 나누고 싶어요.', neighborhood: '성동구 성수동', ageGroup: '20대', hobbies: ['디저트', '카페'], traits: ['시간을 잘 지키는'], sugarContent: 78 },
+  'user-req-2': { bio: '동네에서 취향이 맞는 이웃과 함께하고 싶어요.', neighborhood: '성동구 성수동', ageGroup: '30대', hobbies: ['디저트', '산책'], traits: ['배려하는'], sugarContent: 85 },
   [DEMO_USER_ID]: { bio: '새로운 카페와 디저트를 함께 즐길 이웃을 만나고 싶어요.', neighborhood: '성동구 성수동', ageGroup: '20대', hobbies: ['카페', '디저트'], traits: ['차분한', '약속을 잘 지키는'], sugarContent: 50 },
   'user-now': { bio: '커피 한 잔과 가벼운 산책을 좋아해요.', neighborhood: '성동구 성수동', ageGroup: '20대', hobbies: ['커피', '산책'], traits: ['편안한 대화'], sugarContent: 63 },
   'user-minwoo': { bio: '축제와 야외 피크닉을 좋아해요. 서로 사진도 남겨주면 좋겠어요.', neighborhood: '영등포구 여의도동', ageGroup: '30대', hobbies: ['축제', '사진'], traits: ['활발한', '계획적인'], sugarContent: 72 },
@@ -15,20 +17,24 @@ const samples: Record<string, Pick<PublicUserProfile, 'bio' | 'neighborhood' | '
 };
 
 export function publicProfileForPost(post: MeetupPost, currentUser: CurrentUser | null): PublicUserProfile {
+  return publicProfileForMember({ id: post.authorId || `unknown-${post.id}`, displayName: post.author, avatar: post.avatar }, currentUser);
+}
+
+export function publicProfileForMember(member: ChatMember, currentUser: CurrentUser | null): PublicUserProfile {
   const base: PublicUserProfile = {
-    id: post.authorId || `unknown-${post.id}`, displayName: post.author, avatar: post.avatar,
+    ...member,
     bio: '', neighborhood: '', ageGroup: '', hobbies: [], traits: [], sugarContent: null,
     isPhoneVerified: false, isKycVerified: false, isSample: false, reviews: [],
   };
-  if (currentUser?.id === post.authorId) return {
+  if (currentUser?.id === member.id) return {
     ...base, displayName: currentUser.maskedName, avatar: currentUser.avatar, bio: currentUser.bio,
     neighborhood: currentUser.neighborhood, ageGroup: currentUser.ageGroup, sugarContent: currentUser.sugarContent,
     isPhoneVerified: currentUser.isPhoneVerified, isKycVerified: currentUser.isKycVerified,
     isSample: currentUser.id === DEMO_USER_ID,
   };
-  const sample = post.authorId && samples[post.authorId];
+  const sample = samples[member.id];
   if (!sample) return base;
   return { ...base, ...sample, isSample: true, isPhoneVerified: true,
-    reviews: [{ id: `sample-review-${post.authorId}`, author: '이*진', rating: 5, comment: '약속 시간을 지켜주셨고 서로 편한 방식으로 함께할 수 있었어요.' }],
+    reviews: [{ id: `sample-review-${member.id}`, author: '이*진', rating: 5, comment: '약속 시간을 지켜주셨고 서로 편한 방식으로 함께할 수 있었어요.' }],
   };
 }

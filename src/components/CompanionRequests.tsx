@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronRight, Inbox } from 'lucide-react';
 import type { JoinRequest } from '../types';
+import { requestStatusLabel } from '../utils/conversations';
 
 export type RequestTab = 'sent' | 'received';
 export interface CompanionRequestsProps {
@@ -11,12 +12,15 @@ export interface CompanionRequestsProps {
   onAccept: (requestId: string) => void;
   onReject: (requestId: string) => void;
   onOpenPost: (postId: string) => void;
+  onOpenChat: (id: string) => void;
+  onOpenProfile: (id: string) => void;
+  onCancel: (id: string) => void;
 }
-export function CompanionRequests({ userId, requests, tab, onChangeTab, onAccept, onReject, onOpenPost }: CompanionRequestsProps) {
+export function CompanionRequests({ userId, requests, tab, onChangeTab, onAccept, onReject, onOpenPost, onOpenChat, onOpenProfile, onCancel }: CompanionRequestsProps) {
   const sent = requests.filter(r => r.requesterId === userId);
   const received = requests.filter(r => r.hostId === userId);
   const visible = tab === 'sent' ? sent : received;
-  const labels = { pending: '수락 대기', accepted: '매칭 확정', rejected: '매칭 종료' };
+  const labels = requestStatusLabel;
   return <section aria-label="나의 동행 신청" className="bg-white px-5 pt-5 pb-6 border-b border-gray-100">
     <h1 className="text-xl font-bold mb-4">나의 동행</h1>
     <div role="tablist" aria-label="동행 신청 구분" className="flex border-b border-gray-100 mb-4">
@@ -27,8 +31,10 @@ export function CompanionRequests({ userId, requests, tab, onChangeTab, onAccept
       {visible.map(request => <article key={request.id} data-request-id={request.id} className="border border-gray-100 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2"><span className={`text-[11px] px-2 py-1 rounded-full font-bold ${request.status === 'accepted' ? 'text-green-700 bg-green-50' : request.status === 'pending' ? 'text-[#6c2cf5] bg-purple-50' : 'text-gray-500 bg-gray-100'}`}>{labels[request.status]}</span><span className="text-[11px] text-gray-400">{request.createdAt}</span></div>
         <button onClick={() => onOpenPost(request.postId)} className="flex w-full items-center justify-between gap-2 text-left font-bold text-sm leading-relaxed">{request.postTitle}<ChevronRight size={16} className="shrink-0 text-gray-400" /></button>
-        {tab === 'received' && <div className="flex items-center gap-2 mt-3"><img src={request.requesterAvatar} alt="" className="w-7 h-7 rounded-full object-cover" /><span className="text-xs font-semibold">{request.requesterName}</span><span className="text-xs text-amber-600">당도 {request.requesterSugar}</span></div>}
+        {tab === 'received' && <button onClick={() => onOpenProfile(request.id)} aria-label={`${request.requesterName}님의 상세 프로필 보기`} className="flex items-center gap-2 mt-3 w-full text-left"><img src={request.requesterAvatar} alt="" className="w-7 h-7 rounded-full object-cover" /><span className="text-xs font-semibold">{request.requesterName}</span><span className="text-xs text-amber-600">당도 {request.requesterSugar}</span><span className="ml-auto text-[11px] text-[#6c2cf5]">프로필 보기 →</span></button>}
         <p className="text-xs leading-relaxed text-gray-500 mt-3">{request.message}</p>
+        <button onClick={() => onOpenChat(request.id)} className="w-full mt-3 bg-purple-50 text-[#6c2cf5] py-2.5 rounded-xl text-xs font-bold">{request.status === 'pending' ? '대화하기' : '대화 내역 보기'}</button>
+        {tab === 'sent' && request.status === 'pending' && <button onClick={() => onCancel(request.id)} className="text-xs text-gray-500 underline mt-3">신청 취소</button>}
         {tab === 'received' && request.status === 'pending' && <div className="flex gap-2 mt-4"><button onClick={() => onReject(request.id)} className="flex-1 bg-gray-100 text-gray-500 py-2.5 rounded-xl text-xs font-semibold">거절</button><button onClick={() => onAccept(request.id)} className="flex-1 bg-[#6c2cf5] text-white py-2.5 rounded-xl text-xs font-bold">수락하기</button></div>}
       </article>)}
     </div>

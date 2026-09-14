@@ -1,530 +1,447 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, MapPin, Clock, CheckCheck, Info, CalendarClock, Check, X, Sparkles, PhoneCall, ShieldCheck, ShieldAlert, AlertTriangle, Star } from 'lucide-react';
-import { Appointment, ScheduleProposal } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  ChevronRight,
+  Send,
+  Phone,
+  CalendarClock,
+  X,
+} from 'lucide-react';
+import type {
+  Appointment,
+  ChatRoom,
+  CurrentUser,
+  JoinRequest,
+  MeetupPost,
+  PublicUserProfile,
+  ScheduleProposal,
+} from '../types';
 import { CompletionActions, CompletionActionsProps } from './CompletionActions';
-import { formatClock, formatMeetupRange, isValidMeetupRange } from '../utils/meetupLifecycle';
+import {
+  formatClock,
+  formatMeetupRange,
+  isValidMeetupRange,
+} from '../utils/meetupLifecycle';
 import { koreaDateKey } from '../utils/calendar';
+import { DEMO_USER_ID } from '../data/demoIdentity';
 
 interface ChatViewProps {
-  appointment: Appointment;
+  room: ChatRoom;
+  user: CurrentUser;
+  partner: PublicUserProfile;
+  post?: MeetupPost;
+  request?: JoinRequest;
+  appointment?: Appointment;
+  status: { canSend: boolean; label: string };
+  completionActions?: CompletionActionsProps;
+  onBack: () => void;
+  onOpenPost: () => void;
+  onOpenProfile: () => void;
   onOpenDashboard: () => void;
-  onUpdateAppointment?: (newSchedule: { dateTime: string; location: string; startsAt?: string; endsAt?: string }) => void;
-  onOpenVoiceCall?: () => void;
-  onOpenSafetyRules?: () => void;
-  onOpenReport?: () => void;
-  completionActions: CompletionActionsProps;
+  onOpenVoiceCall: () => void;
+  onAccept: () => void;
+  onReject: () => void;
+  onCancel: () => void;
+  onSimulateAccept: () => void;
+  onSend: (text: string, sample?: boolean) => void;
+  onDraft: (text: string) => void;
+  onPropose: (proposal: ScheduleProposal) => void;
+  onResolveProposal: (id: string, accepted: boolean, sample?: boolean) => void;
 }
 
-interface Message {
-  id: string;
-  sender: 'me' | 'partner';
-  text: string;
-  time: string;
-  proposal?: ScheduleProposal;
-}
-
-export const ChatView: React.FC<ChatViewProps> = ({
+export function ChatView({
+  room,
+  user,
+  partner,
+  post,
+  request,
   appointment,
-  onOpenDashboard,
-  onUpdateAppointment,
-  onOpenVoiceCall,
-  onOpenSafetyRules,
-  onOpenReport,
+  status,
   completionActions,
-}) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'm1',
-      sender: 'partner',
-      text: '안녕하세요! 이번 토요일 식사 동행 매칭되어 반갑습니다 :)',
-      time: '어제 오후 5:20',
-    },
-    {
-      id: 'm2',
-      sender: 'me',
-      text: `안녕하세요 ${appointment.partnerName}님! 반갑습니다. 식사 약속 기대되네요!`,
-      time: '어제 오후 5:24',
-    },
-    {
-      id: 'm3',
-      sender: 'partner',
-      text: '제가 2시 예약 미리 메모해 두었어요. 혹시 시간이나 장소 편하신 곳 있으시면 언제든 말씀해주세요!',
-      time: '오전 10:12',
-    },
-  ]);
-
-  const [inputVal, setInputVal] = useState('');
-  const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
-  const localInput = (iso?: string) => iso && Number.isFinite(Date.parse(iso)) ? `${koreaDateKey(new Date(iso))}T${formatClock(iso)}` : '';
-  const [proposedDateTime, setProposedDateTime] = useState(localInput(appointment.scheduledAt));
-  const [proposedEndDateTime, setProposedEndDateTime] = useState(localInput(appointment.endsAt));
-  const [proposalError, setProposalError] = useState('');
-  const [proposedLocation, setProposedLocation] = useState(appointment.location);
-
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  onBack,
+  onOpenPost,
+  onOpenProfile,
+  onOpenDashboard,
+  onOpenVoiceCall,
+  onAccept,
+  onReject,
+  onCancel,
+  onSimulateAccept,
+  onSend,
+  onDraft,
+  onPropose,
+  onResolveProposal,
+}: ChatViewProps) {
+  const endRef = useRef<HTMLDivElement>(null);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [location, setLocation] = useState('');
+  const [error, setError] = useState('');
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputVal.trim()) return;
-
-    const newMsg: Message = {
-      id: 'm-' + Date.now(),
-      sender: 'me',
-      text: inputVal.trim(),
-      time: '방금',
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-    setInputVal('');
-
-    // Auto simulated reply
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: 'm-' + (Date.now() + 1),
-          sender: 'partner',
-          text: '확인했습니다! 내일 맛있는 식사 하면서 즐거운 시간 보내요 😊',
-          time: '방금',
-        },
-      ]);
-    }, 1200);
+    endRef.current?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+  }, [room.messages.length]);
+  const pending = request?.status === 'pending' && status.canSend;
+  const local = (iso?: string) =>
+    iso && Number.isFinite(Date.parse(iso))
+      ? `${koreaDateKey(new Date(iso))}T${formatClock(iso)}`
+      : '';
+  const openProposal = () => {
+    setStartsAt(local(appointment?.scheduledAt));
+    setEndsAt(local(appointment?.endsAt));
+    setLocation(appointment?.location || '');
+    setError('');
+    setProposalOpen(true);
   };
-
-  const handleSendProposal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!proposedDateTime.trim() || !proposedLocation.trim()) return;
-    const startValue = `${proposedDateTime}:00+09:00`;
-    const endValue = `${proposedEndDateTime}:00+09:00`;
-    if (!isValidMeetupRange(startValue, endValue)) { setProposalError('종료 시각은 시작 시각보다 늦어야 해요.'); return; }
-    const startsAt = new Date(startValue).toISOString();
-    const endsAt = new Date(endValue).toISOString();
-    const dateTime = formatMeetupRange(startsAt, endsAt);
-    setProposalError('');
-
-    const newProposal: ScheduleProposal = {
-      id: 'prop-' + Date.now(),
-      newDateTime: dateTime,
-      startsAt,
-      endsAt,
-      newLocation: proposedLocation.trim(),
-      status: 'pending',
-      proposerName: '나',
-    };
-
-    const newMsg: Message = {
-      id: 'm-prop-' + Date.now(),
-      sender: 'me',
-      text: `[일정/장소 변경 제안] ${dateTime} / ${proposedLocation.trim()} (으)로 변경을 제안합니다.`,
-      time: '방금',
-      proposal: newProposal,
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-    setIsProposalModalOpen(false);
-
-    // Auto partner acceptance simulation after 2 seconds
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.proposal && msg.proposal.id === newProposal.id) {
-            return {
-              ...msg,
-              proposal: { ...msg.proposal, status: 'accepted' },
-            };
-          }
-          return msg;
-        })
-      );
-
-      if (onUpdateAppointment) {
-        onUpdateAppointment({
-          dateTime,
-          startsAt,
-          endsAt,
-          location: proposedLocation.trim(),
-        });
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: 'm-reply-' + Date.now(),
-          sender: 'partner',
-          text: `제안해주신 시간(${proposedDateTime.trim()})과 장소 좋습니다! 일정 변경 수락했어요. 그때 뵐게요! 👍`,
-          time: '방금',
-        },
-      ]);
-    }, 2000);
-  };
-
-  const handleAcceptProposal = (msgId: string, proposal: ScheduleProposal) => {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id === msgId && msg.proposal) {
-          return {
-            ...msg,
-            proposal: { ...msg.proposal, status: 'accepted' },
-          };
-        }
-        return msg;
-      })
-    );
-
-    if (onUpdateAppointment) {
-      onUpdateAppointment({
-        dateTime: proposal.newDateTime,
-        startsAt: proposal.startsAt,
-        endsAt: proposal.endsAt,
-        location: proposal.newLocation,
-      });
+  const submitProposal = (event: React.FormEvent) => {
+    event.preventDefault();
+    const start = `${startsAt}:00+09:00`,
+      end = `${endsAt}:00+09:00`;
+    if (!isValidMeetupRange(start, end)) {
+      setError('종료 시각은 시작 시각보다 늦어야 해요.');
+      return;
     }
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: 'm-' + Date.now(),
-        sender: 'me',
-        text: '제안해주신 일정 변경을 수락했습니다! 약속 정보가 즉시 업데이트되었습니다.',
-        time: '방금',
-      },
-    ]);
+    onPropose({
+      id: crypto.randomUUID(),
+      startsAt: new Date(start).toISOString(),
+      endsAt: new Date(end).toISOString(),
+      newDateTime: formatMeetupRange(start, end),
+      newLocation: location.trim(),
+      status: 'pending',
+      proposerName: user.maskedName,
+    });
+    setProposalOpen(false);
   };
-
-  const handleRejectProposal = (msgId: string) => {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id === msgId && msg.proposal) {
-          return {
-            ...msg,
-            proposal: { ...msg.proposal, status: 'rejected' },
-          };
-        }
-        return msg;
-      })
-    );
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: 'm-' + Date.now(),
-        sender: 'me',
-        text: '죄송하지만 해당 시간은 어려울 것 같아요. 기존 일정대로 진행하면 좋을 것 같습니다!',
-        time: '방금',
-      },
-    ]);
-  };
-
   return (
-    <div className="flex flex-col h-[calc(100vh-125px)] bg-[#f6f7fb] text-left">
-      {/* Top Partner Header */}
-      <div className="bg-white px-4 py-3 shadow-xs flex items-center justify-between z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="relative">
-            <img
-              src={appointment.partnerAvatar}
-              alt={appointment.partnerName}
-              className="w-10 h-10 rounded-full object-cover shadow-2xs"
-            />
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h3 className="font-bold text-[14.5px] text-gray-900">{appointment.partnerName}</h3>
-              <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-1.5 py-0.5 rounded">
-                1:1 동행
-              </span>
-            </div>
-            <p className="text-[11px] text-gray-500">당도 99 🍯 • 안심 조율방</p>
-          </div>
-        </div>
-
-        {/* Action Button Group */}
-        <div className="flex items-center gap-1">
-          {/* Voice Call Simulation Button */}
-          {onOpenVoiceCall && (
-            <button
-              onClick={onOpenVoiceCall}
-              title="안심 음성 통화"
-              className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors active:scale-95"
-            >
-              <PhoneCall className="w-4 h-4" />
-            </button>
-          )}
-
-          {/* Safety Rules Button */}
-          {onOpenSafetyRules && (
-            <button
-              onClick={onOpenSafetyRules}
-              title="안심 안전 5대 수칙"
-              className="p-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-colors active:scale-95"
-            >
-              <ShieldCheck className="w-4 h-4" />
-            </button>
-          )}
-
-          {/* Report Button */}
-          {onOpenReport && (
-            <button
-              onClick={onOpenReport}
-              title="파트너 비매너 신고"
-              className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors active:scale-95"
-            >
-              <AlertTriangle className="w-4 h-4" />
-            </button>
-          )}
-
+    <section
+      aria-label="동행 대화방"
+      data-active-room={room.id}
+      className="flex flex-col h-[calc(100dvh-126px)] min-h-[450px] text-left bg-[#f7f6fa]"
+    >
+      <header className="bg-white px-3 py-3 flex items-center gap-2 border-b border-gray-100 shrink-0">
+        <button onClick={onBack} aria-label="채팅 목록으로" className="p-2">
+          <ArrowLeft size={20} />
+        </button>
+        <button
+          onClick={onOpenProfile}
+          aria-label={`${partner.displayName}님의 상세 프로필 보기`}
+          className="flex items-center gap-2 min-w-0 flex-1 text-left"
+        >
+          <img
+            src={partner.avatar}
+            alt=""
+            className="w-10 h-10 rounded-full object-cover shrink-0"
+          />
+          <span className="min-w-0">
+            <b className="block text-sm">{partner.displayName}</b>
+            <span className="block text-[11px] text-gray-500">
+              {partner.sugarContent === null
+                ? '프로필 보기'
+                : `당도 ${partner.sugarContent} · 프로필 보기`}
+            </span>
+          </span>
+        </button>
+        {appointment && (
           <button
-            onClick={() => setIsProposalModalOpen(true)}
-            className="text-xs font-bold text-[#6c2cf5] bg-[#f0edff] hover:bg-[#e4dcfa] px-2.5 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+            onClick={onOpenVoiceCall}
+            aria-label="안심 통화 안내"
+            className="text-[#6c2cf5] flex flex-col items-center p-2"
           >
-            <CalendarClock className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">제안</span>
+            <Phone size={17} />
+            <span className="text-[9px] mt-1">준비 중</span>
           </button>
-          <button
-            onClick={onOpenDashboard}
-            className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+        )}
+      </header>
+      <div className="bg-white px-4 pb-3 pt-2 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className="text-[11px] font-bold text-[#6c2cf5]"
+            data-chat-status
           >
-            <Info className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">약속</span>
-          </button>
+            {status.label}
+          </span>
+          {appointment && (
+            <button
+              onClick={onOpenDashboard}
+              className="text-[11px] text-[#6c2cf5] font-bold"
+            >
+              약속 상세 →
+            </button>
+          )}
         </div>
+        <button
+          onClick={onOpenPost}
+          disabled={!post}
+          className="flex items-center justify-between w-full text-left gap-2 mt-2 disabled:text-gray-400"
+        >
+          <b className="text-xs line-clamp-2">
+            {post?.title || room.postTitle}
+          </b>
+          <ChevronRight size={15} className="shrink-0 text-gray-400" />
+        </button>
+        <p className="text-[10px] text-gray-500 mt-1">
+          {appointment?.dateTime || post?.time || '삭제된 공고입니다.'}
+        </p>
+        {pending && (
+          <div className="flex gap-2 mt-3">
+            {request.hostId === user.id ? (
+              <>
+                <button
+                  onClick={onReject}
+                  className="flex-1 text-xs py-2 rounded-lg bg-gray-100 text-gray-600"
+                >
+                  거절
+                </button>
+                <button
+                  onClick={onAccept}
+                  className="flex-1 text-xs py-2 rounded-lg bg-[#6c2cf5] text-white font-bold"
+                >
+                  동행 수락하기
+                </button>
+              </>
+            ) : (
+              <p className="text-[11px] text-gray-500">
+                작성자가 수락하면 동행이 확정돼요.{' '}
+                <button onClick={onCancel} className="underline">
+                  신청 취소
+                </button>
+              </p>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Appointment mini-summary bar (Dynamic reflection) */}
-      <div className="bg-white/90 backdrop-blur-xs px-4 py-2.5 shadow-2xs flex items-center justify-between text-xs text-gray-600">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-[#6c2cf5]" />
-          <span className="font-bold text-gray-900">{appointment.dateTime}</span>
-          <span className="text-gray-300">|</span>
-          <MapPin className="w-3.5 h-3.5 text-[#6c2cf5]" />
-          <span className="truncate max-w-[150px] font-semibold text-gray-800">{appointment.location}</span>
-        </div>
-
-      </div>
-      <div className="px-4 py-2"><CompletionActions {...completionActions} /></div>
-
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {/* Safety Tip */}
-        <div className="bg-white/80 rounded-2xl p-3.5 shadow-2xs text-center text-xs text-gray-500 space-y-0.5">
-          <p className="font-semibold text-gray-700">🔒 안전한 1:1 동행을 위한 안심 대화방입니다</p>
-          <p>시간이나 장소 조정은 상단의 [일정/장소 제안] 기능을 이용해 상호 동의 하에 안전하게 변경하세요.</p>
-        </div>
-
-        {messages.map((msg) => {
-          const isMe = msg.sender === 'me';
-          return (
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+        {room.messages.map((message) =>
+          message.senderId === 'system' ? (
+            <p
+              key={message.id}
+              className="text-center text-[10px] leading-relaxed text-gray-500 bg-gray-100 rounded-xl px-3 py-2"
+            >
+              {message.text}
+            </p>
+          ) : (
             <div
-              key={msg.id}
-              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+              key={message.id}
+              className={`flex ${message.senderId === user.id ? 'justify-end' : 'justify-start'}`}
             >
-              {/* Proposal Card Rendering */}
-              {msg.proposal ? (
-                <div
-                  className={`w-full max-w-[320px] rounded-2xl p-4 shadow-sm text-xs space-y-2.5 ${
-                    isMe
-                      ? 'bg-[#f5f3ff] text-gray-900'
-                      : 'bg-white text-gray-900'
-                  }`}
-                >
-                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                    <span className="font-bold text-[#6c2cf5] flex items-center gap-1 text-[11px]">
-                      <CalendarClock className="w-3.5 h-3.5" />
-                      1:1 조건 변경 제안
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        msg.proposal.status === 'accepted'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : msg.proposal.status === 'rejected'
-                          ? 'bg-gray-100 text-gray-500'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {msg.proposal.status === 'accepted'
-                        ? '수락 완료'
-                        : msg.proposal.status === 'rejected'
-                        ? '제안 거절됨'
-                        : '수락 대기중'}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 text-gray-700">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-gray-500">시간:</span>
-                      <span className="font-bold text-gray-900">{msg.proposal.newDateTime}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span className="text-gray-500">장소:</span>
-                      <span className="font-bold text-gray-900">{msg.proposal.newLocation}</span>
-                    </div>
-                  </div>
-
-                  {msg.proposal.status === 'pending' && !isMe && (
-                    <div className="flex items-center gap-2 pt-2">
-                      <button
-                        onClick={() => handleRejectProposal(msg.id)}
-                        className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-700 font-bold text-center transition-colors"
-                      >
-                        거절
-                      </button>
-                      <button
-                        onClick={() => handleAcceptProposal(msg.id, msg.proposal!)}
-                        className="flex-1 py-2 bg-[#6c2cf5] hover:bg-[#5820d8] text-white rounded-xl font-bold text-center flex items-center justify-center gap-1 shadow-xs transition-colors"
-                      >
-                        <Check className="w-3 h-3" />
-                        수락하기
-                      </button>
-                    </div>
-                  )}
-
-                  {msg.proposal.status === 'pending' && isMe && (
-                    <p className="text-[10.5px] text-gray-400 text-center pt-2">
-                      상대방이 수락하면 약속 정보가 즉시 변경됩니다.
+              <div
+                className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed ${message.senderId === user.id ? 'bg-[#6c2cf5] text-white rounded-tr-sm' : 'bg-white text-gray-800 rounded-tl-sm'}`}
+              >
+                {message.isSample && (
+                  <span className="block text-[9px] opacity-70 mb-1">
+                    상대방 응답 시연
+                  </span>
+                )}
+                <p className="whitespace-pre-wrap break-words">
+                  {message.text}
+                </p>
+                {message.proposal && (
+                  <div className="bg-white text-gray-700 rounded-xl mt-2 p-3 space-y-2">
+                    <b className="block text-[11px]">일정·장소 변경 제안</b>
+                    <p>{message.proposal.newDateTime}</p>
+                    <p>{message.proposal.newLocation}</p>
+                    <p className="text-[10px] text-[#6c2cf5]">
+                      {message.proposal.status === 'accepted'
+                        ? '변경 수락됨'
+                        : message.proposal.status === 'rejected'
+                          ? '변경 거절됨 · 기존 일정 유지'
+                          : '상대 동의 전까지 기존 일정 유지'}
                     </p>
-                  )}
-
-                  {msg.proposal.status === 'accepted' && (
-                    <p className="text-[10.5px] text-emerald-600 font-bold text-center pt-1">
-                      ✓ 상호 동의로 일정이 변경되었습니다
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div
-                  className={`max-w-[78%] px-4 py-2.5 rounded-[20px] text-[13.5px] leading-relaxed shadow-2xs ${
-                    isMe
-                      ? 'bg-[#6c2cf5] text-white rounded-tr-xs'
-                      : 'bg-white text-gray-900 rounded-tl-xs'
-                  }`}
-                >
-                  {msg.text}
-                </div>
-              )}
-
-              <div className="flex items-center gap-1 mt-1 text-[10.5px] text-gray-400 px-1">
-                <span>{msg.time}</span>
-                {isMe && <CheckCheck className="w-3 h-3 text-[#6c2cf5]" />}
+                    {message.proposal.status === 'pending' &&
+                      status.canSend &&
+                      (message.senderId !== user.id ||
+                        user.id === DEMO_USER_ID) && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() =>
+                              onResolveProposal(
+                                message.id,
+                                false,
+                                message.senderId === user.id,
+                              )
+                            }
+                            className="rounded-lg bg-gray-100 py-2 px-2 text-[10px]"
+                          >
+                            {message.senderId === user.id
+                              ? '상대 거절 시연'
+                              : '거절'}
+                          </button>
+                          <button
+                            onClick={() =>
+                              onResolveProposal(
+                                message.id,
+                                true,
+                                message.senderId === user.id,
+                              )
+                            }
+                            className="rounded-lg bg-purple-50 text-[#6c2cf5] py-2 px-2 text-[10px]"
+                          >
+                            {message.senderId === user.id
+                              ? '상대 수락 시연'
+                              : '수락'}
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                )}
+                <span className="block mt-1 text-[9px] opacity-65">
+                  {formatClock(message.createdAt)}
+                </span>
               </div>
             </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Chat Input */}
-      <form
-        onSubmit={handleSend}
-        className="bg-white p-3 shadow-[0_-2px_12px_rgba(0,0,0,0.03)] flex items-center gap-2"
-      >
-        <button
-          type="button"
-          onClick={() => setIsProposalModalOpen(true)}
-          title="일정/장소 제안하기"
-          className="p-2 text-gray-500 hover:text-[#6c2cf5] hover:bg-purple-50 rounded-full transition-colors"
-        >
-          <CalendarClock className="w-5 h-5" />
-        </button>
-        <input
-          type="text"
-          placeholder="메시지를 입력하세요..."
-          value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          className="flex-1 px-4 py-2.5 bg-gray-100 rounded-full text-xs sm:text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#6c2cf5]"
-        />
-        <button
-          type="submit"
-          className="w-9 h-9 rounded-full bg-[#6c2cf5] text-white flex items-center justify-center hover:bg-[#5820d8] active:scale-95 transition-all shadow-xs"
-        >
-          <Send className="w-4 h-4" />
-        </button>
-      </form>
-
-      {/* Schedule Change Proposal Modal */}
-      {isProposalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div
-            className="bg-white w-full max-w-[380px] rounded-3xl p-5 shadow-2xl animate-in zoom-in-95 duration-200 text-left space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-purple-100 text-[#6c2cf5] flex items-center justify-center">
-                  <CalendarClock className="w-4 h-4" />
-                </div>
-                <h4 className="font-bold text-gray-900 text-sm">일정 / 장소 변경 제안</h4>
-              </div>
+          ),
+        )}
+        {appointment && completionActions && (
+          <CompletionActions {...completionActions} />
+        )}
+        {user.id === DEMO_USER_ID && status.canSend && (
+          <details className="text-[10px] text-gray-500 rounded-xl border border-dashed border-purple-200 p-3">
+            <summary className="cursor-pointer">프로토타입 시연 도구</summary>
+            <p className="mt-2">
+              실제 상대방에게 전송되지 않습니다. 새로고침하면 초기화돼요.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
               <button
-                onClick={() => setIsProposalModalOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700 rounded-full"
+                onClick={() =>
+                  onSend(
+                    `공고의 일정과 활동 내용을 확인했어요. ${post?.category || '이번 동행'}에 대해 궁금한 점을 이야기해요.`,
+                    true,
+                  )
+                }
+                className="rounded-lg bg-purple-50 text-[#6c2cf5] p-2"
               >
-                <X className="w-4 h-4" />
+                상대 답장 시연
+              </button>
+              {pending && request.requesterId === user.id && (
+                <button
+                  onClick={onSimulateAccept}
+                  className="rounded-lg bg-purple-50 text-[#6c2cf5] p-2"
+                >
+                  작성자 수락 시연
+                </button>
+              )}
+            </div>
+          </details>
+        )}
+        <div ref={endRef} />
+      </div>
+      {!status.canSend ? (
+        <p className="p-4 bg-gray-100 text-center text-xs text-gray-500">
+          {status.label} · 이전 대화는 볼 수 있지만 새 메시지는 보낼 수 없어요.
+        </p>
+      ) : (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (room.draft.trim()) onSend(room.draft.trim());
+          }}
+          className="bg-white p-3 flex gap-2 items-end border-t border-gray-100 shrink-0"
+        >
+          {appointment && appointment.status !== '동행 완료' && (
+            <button
+              type="button"
+              title="일정/장소 제안하기"
+              onClick={openProposal}
+              className="p-2 text-gray-500"
+            >
+              <CalendarClock size={19} />
+            </button>
+          )}
+          <textarea
+            aria-label="메시지"
+            rows={1}
+            value={room.draft}
+            onChange={(event) => onDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                if (room.draft.trim()) onSend(room.draft.trim());
+              }
+            }}
+            placeholder="메시지를 입력하세요..."
+            className="flex-1 min-w-0 bg-gray-100 rounded-xl px-3 py-2 text-sm resize-none max-h-24 outline-none focus:ring-2 focus:ring-purple-200"
+          />
+          <button
+            aria-label="메시지 보내기"
+            disabled={!room.draft.trim()}
+            type="submit"
+            className="p-2.5 bg-[#6c2cf5] rounded-xl text-white disabled:bg-gray-200"
+          >
+            <Send size={17} />
+          </button>
+        </form>
+      )}
+      {proposalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="일정 장소 변경 제안"
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+        >
+          <form
+            onSubmit={submitProposal}
+            className="bg-white rounded-3xl p-5 max-w-[400px] w-full space-y-4"
+          >
+            <div className="flex justify-between">
+              <h2 className="font-bold text-sm">일정·장소 변경 제안</h2>
+              <button
+                type="button"
+                aria-label="변경 제안 닫기"
+                onClick={() => setProposalOpen(false)}
+              >
+                <X size={19} />
               </button>
             </div>
-
-            <form onSubmit={handleSendProposal} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">새 시작 날짜·시각</label>
-                <input
-                  type="datetime-local"
-                  aria-label="새 시작 날짜·시각"
-                  value={proposedDateTime}
-                  onChange={(e) => setProposedDateTime(e.target.value)}
-                  placeholder="예: 2026.9.12(토) 15:30"
-                  className="w-full px-3.5 py-2.5 bg-gray-50 rounded-xl focus:outline-none focus:bg-white focus:ring-1.5 focus:ring-[#6c2cf5] text-gray-900"
-                  required
-                />
-              </div>
-
-              <div><label htmlFor="proposal-end" className="block font-bold text-gray-700 mb-1">새 종료 날짜·시각</label><input id="proposal-end" type="datetime-local" required value={proposedEndDateTime} onChange={e => setProposedEndDateTime(e.target.value)} className="w-full px-3.5 py-2.5 bg-gray-50 rounded-xl text-gray-900" /></div>
-              {proposalError && <p role="alert" className="text-red-600">{proposalError}</p>}
-
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">새로운 만남 장소</label>
-                <input
-                  type="text"
-                  value={proposedLocation}
-                  onChange={(e) => setProposedLocation(e.target.value)}
-                  placeholder="예: 강남역 11번 출구 스타벅스"
-                  className="w-full px-3.5 py-2.5 bg-gray-50 rounded-xl focus:outline-none focus:bg-white focus:ring-1.5 focus:ring-[#6c2cf5] text-gray-900"
-                  required
-                />
-              </div>
-
-              <div className="p-3 bg-gray-50 rounded-xl text-[11px] text-gray-500 leading-relaxed">
-                제안 카드가 상대방에게 전송되며, 상대방이 [수락] 버튼을 누르면 약속 카드 정보가 즉시 업데이트됩니다.
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsProposalModalOpen(false)}
-                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-600 transition-colors"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white rounded-xl font-bold shadow-sm shadow-purple-500/20 active:scale-98 transition-all"
-                >
-                  제안 전송하기
-                </button>
-              </div>
-            </form>
-          </div>
+            <label className="block text-xs">
+              새 시작 날짜·시각
+              <input
+                type="datetime-local"
+                required
+                value={startsAt}
+                onChange={(event) => setStartsAt(event.target.value)}
+                className="block w-full bg-gray-50 p-3 rounded-xl mt-1"
+              />
+            </label>
+            <label className="block text-xs">
+              새 종료 날짜·시각
+              <input
+                type="datetime-local"
+                required
+                value={endsAt}
+                onChange={(event) => setEndsAt(event.target.value)}
+                className="block w-full bg-gray-50 p-3 rounded-xl mt-1"
+              />
+            </label>
+            <label className="block text-xs">
+              새 만남 장소
+              <input
+                required
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                className="block w-full bg-gray-50 p-3 rounded-xl mt-1"
+              />
+            </label>
+            {error && (
+              <p role="alert" className="text-red-600 text-xs">
+                {error}
+              </p>
+            )}
+            <p className="text-[11px] text-gray-500">
+              상대가 수락할 때까지 기존 약속이 유지됩니다.
+            </p>
+            <button
+              type="submit"
+              className="w-full bg-[#6c2cf5] text-white rounded-xl py-3 text-xs font-bold"
+            >
+              제안 전송하기
+            </button>
+          </form>
         </div>
       )}
-    </div>
+    </section>
   );
-};
+}

@@ -289,14 +289,20 @@ const seedMeetupPosts: MeetupPost[] = [
   }
 ];
 
-export const mockMeetupPosts: MeetupPost[] = seedMeetupPosts.map(post => {
+export const mockMeetupPosts: MeetupPost[] = [...seedMeetupPosts.map(post => {
   const schedule = schedules[post.id];
   return schedule ? { ...post, ...schedule, time: formatMeetupRange(schedule.startsAt, schedule.endsAt) } : post;
-});
+}), {
+  ...seedMeetupPosts.find(post => post.id === 'post-3')!, id: 'post-exhibition-open', title: '주말 사진전 함께 보고 감상 나눠요',
+  startsAt: demoSchedule(4, 11), endsAt: demoSchedule(4, 13), time: formatMeetupRange(demoSchedule(4, 11), demoSchedule(4, 13)),
+  description: '사진전을 천천히 둘러보고 마음에 남은 작품 이야기를 나누고 싶어요. 입장권은 각자 준비하고 13시에 마무리해요.',
+  status: 'recruiting', currentMembers: 1,
+}];
 
 export const mockNotifications: NotificationItem[] = [
   {
     id: 'notif-1',
+    roomId: 'room-appt-gangnam-brunch',
     title: '다가오는 확정 동행을 확인해 보세요',
     description: '[조*미] 님과의 강남맛집 식사 동행',
     time: '10분 전',
@@ -313,8 +319,9 @@ export const mockNotifications: NotificationItem[] = [
   },
   {
     id: 'notif-3',
-    title: '새로운 동행 채팅 메시지',
-    description: '조*미: "안녕하세요! 내일 예약 시간 맞춰 뵙겠습니다 :)"',
+    roomId: 'room-appt-art',
+    title: '확정된 동행의 대화방을 확인해 보세요',
+    description: '서*진님과 전시 동행의 일정과 장소를 이야기할 수 있어요.',
     time: '3시간 전',
     read: true,
     type: 'chat',

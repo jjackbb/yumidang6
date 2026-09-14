@@ -12,6 +12,9 @@ interface MyPageViewProps {
   onAcceptRequest: (id: string) => void;
   onRejectRequest: (id: string) => void;
   onOpenRequestPost: (id: string) => void;
+  onOpenRequestChat: (id: string) => void;
+  onOpenRequestProfile: (id: string) => void;
+  onCancelRequest: (id: string) => void;
   currentUser: CurrentUser | null;
   onOpenAuth: () => void;
   onOpenKyc: () => void;
@@ -22,7 +25,7 @@ interface MyPageViewProps {
 }
 
 export const MyPageView: React.FC<MyPageViewProps> = ({
-  appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost,
+  appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost, onOpenRequestChat, onOpenRequestProfile, onCancelRequest,
   onOpenDashboard,
   currentUser,
   onOpenAuth,
@@ -76,7 +79,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
 
   return (
     <div className="px-5 pt-3 pb-24 text-left space-y-4">
-      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} /></div>
+      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} /></div>
       {/* Profile Card */}
       <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">
@@ -455,15 +458,15 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                   <Lock className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-xs font-bold text-purple-100">안심 에스크로 안전 예치</span>
+                <span className="text-xs font-bold text-purple-100">유료 동행 · 예시 내역</span>
               </div>
               <span className="text-[11px] font-bold bg-white/20 px-2.5 py-0.5 rounded-full">
-                100% 안전 보증
+                준비 중
               </span>
             </div>
 
             <div className="mt-4">
-              <span className="text-xs text-purple-200">현재 안전 예치 중인 금액</span>
+              <span className="text-xs text-purple-200">예시 금액 · 실제 결제 내역이 아닙니다</span>
               <div className="text-2xl font-black tracking-tight mt-0.5">
                 {escrowPayments.length > 0
                   ? escrowPayments
@@ -475,14 +478,14 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
             </div>
 
             <p className="text-[11px] text-purple-200 mt-2 leading-relaxed">
-              * 1:1 동행이 무사히 종료되고 상호 확인을 마치기 전까지 대금이 유미당에 안전하게 예치됩니다.
+              * 아래는 화면 구성 예시입니다. 실제 결제·예치·정산 기능은 준비 중이에요.
             </p>
           </div>
 
           {/* Escrow Transactions List */}
           <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)] space-y-3">
             <h4 className="text-sm font-bold text-gray-900 flex items-center justify-between">
-              <span>에스크로 결제 & 예치 내역</span>
+              <span>결제·예치 내역 미리보기</span>
               <span className="text-xs text-[#6c2cf5] font-semibold">
                 {escrowPayments.length > 0 ? `${escrowPayments.length}건` : '1건'}
               </span>
@@ -495,7 +498,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-gray-900 truncate max-w-[200px]">{p.postTitle}</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-[#6c2cf5]">
-                        {p.status === 'held' ? '🔒 예치 중' : '정산 완료'}
+                        {p.status === 'held' ? '예치 예시' : '정산 예시'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-gray-500 text-[11px]">
@@ -513,14 +516,14 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-gray-900">[PRO] 성수동 감성 골목 스냅 촬영 📸</span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-[#6c2cf5]">
-                    🔒 예치 중
+                    예치 예시
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-gray-500 text-[11px]">
                   <span>호스트: 박*준 (2시간)</span>
                   <span className="font-bold text-gray-900 text-xs">60,000원</span>
                 </div>
-                <div className="text-[10px] text-gray-400">결제 완료 • 카카오페이 안심 결제</div>
+                <div className="text-[10px] text-gray-400">예시 결제 수단 • 카카오페이</div>
               </div>
             )}
           </div>

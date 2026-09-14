@@ -30,6 +30,7 @@ interface PostDetailModalProps {
   onClosePost: (postId: string) => void;
   onDeletePost: (postId: string) => void;
   canViewPrivateLocation?: boolean;
+  onOpenExistingChat?: () => void;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -43,6 +44,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onClosePost,
   onDeletePost,
   canViewPrivateLocation = false,
+  onOpenExistingChat,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   useEffect(() => setIsProfileOpen(false), [post?.id, isOpen]);
@@ -177,7 +179,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
               <div className="text-[10.5px] text-purple-700 flex items-center gap-1 font-medium pt-0.5">
                 <Sparkles size={12} />
-                <span>유미당 안심 에스크로 100% 결제 보호 적용</span>
+                <span>유료 동행·결제 기능은 준비 중이에요</span>
               </div>
             </div>
           )}
@@ -295,6 +297,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   <span>공고 삭제하기</span>
                 </button>
               </div>
+            ) : onOpenExistingChat ? (
+              <button onClick={onOpenExistingChat} className="w-full bg-[#6c2cf5] text-white font-bold py-3.5 rounded-xl text-sm">연결된 대화방으로 이동</button>
             ) : post.companionType === 'pro' ? (
               <button
                 disabled={isClosed || isExpired}
@@ -311,7 +315,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     ? '모집 기간이 만료되었습니다'
                     : isClosed
                     ? '1:1 매칭이 마감되었습니다'
-                    : `1:1 안심 에스크로 신청 (${post.proDetails?.hourlyRate.toLocaleString()}원/시간)`}
+                    : `유료 동행 미리보기 (${post.proDetails?.hourlyRate.toLocaleString()}원/시간)`}
                 </span>
               </button>
             ) : (

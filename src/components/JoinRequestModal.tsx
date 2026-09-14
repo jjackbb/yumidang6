@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Send, Calendar, MapPin, AlertCircle, ShieldCheck, Sparkles, User } from 'lucide-react';
 import { MeetupPost, Appointment, CurrentUser } from '../types';
+import { publicProfileForPost } from '../data/publicProfiles';
 
 interface JoinRequestModalProps {
   post: MeetupPost | null;
@@ -8,7 +9,7 @@ interface JoinRequestModalProps {
   onClose: () => void;
   currentUser: CurrentUser | null;
   currentAppointment?: Appointment;
-  onSubmitRequest: (postId: string, message: string) => void;
+  onSubmitRequest: (postId: string, message: string) => boolean;
 }
 
 export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
@@ -36,12 +37,11 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
-    onSubmitRequest(post.id, message.trim());
-    onClose();
+    if (onSubmitRequest(post.id, message.trim())) onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="동행 참여 신청" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -71,7 +71,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
                 {post.category}
               </span>
               <span className="text-xs font-semibold text-gray-500">
-                호스트: {post.author} (당도 99 🍯)
+                작성자: {post.author} · 당도 {publicProfileForPost(post, currentUser).sugarContent ?? '정보 없음'}
               </span>
             </div>
             <h4 className="font-bold text-sm text-gray-900 leading-snug">
@@ -143,7 +143,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
           {/* 1:1 Matching Commitment Notice */}
           <div className="p-3.5 bg-[#f0edff] rounded-2xl text-[11px] text-[#6c2cf5] leading-relaxed">
             <span className="font-bold block mb-0.5">🤝 1:1 동행 매칭 약속</span>
-            호스트가 회원님의 신청을 [수락]하면 즉시 1:1 매칭이 확정(2/2명)되며, 호스트와의 1:1 실시간 조율 채팅방이 자동으로 개설됩니다.
+            신청하면 바로 작성자와 대화할 수 있어요. 작성자가 [수락]하면 동행이 확정되고, 같은 채팅방에서 약속을 이어갑니다. 확정 전에는 신청을 취소할 수 있어요.
           </div>
 
           {/* Submit CTA */}
