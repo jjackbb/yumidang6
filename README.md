@@ -69,8 +69,11 @@ npm run preview
 
 ## 📂 프로젝트 구조
 
+기본 저장소는 [jjackbb/yumidang6](https://github.com/jjackbb/yumidang6)이며, 기본 브랜치는 `main`입니다.
+Vercel 배포 설정은 `vercel.json`에 정의되어 있습니다: `npm ci`로 설치한 뒤 `npm run build`를 실행하고 `dist`를 배포합니다.
+
 ```
-yumidang5/
+yumidang6/
 ├── public/               # 정적 에셋 (유미당 로고 이미지 등)
 │   └── logo.jpg
 ├── src/
