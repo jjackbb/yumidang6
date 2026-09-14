@@ -134,68 +134,88 @@ export default function App() {
   // Phase 5: Mutual Blind Review & Sugar Settling states
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
-  // UI 뒤로가기/닫기 이벤트 및 체류시간 실시간 추적 (Supabase ui_back_events)
+  // UI 뒤로가기/닫기 이벤트 및 체류시간 실시간 추적 (Supabase 정규화 테이블 ui_back_events)
   const modalOpenTimes = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (selectedPostForDetail) {
-      modalOpenTimes.current['post_detail_modal'] = Date.now();
-    } else if (modalOpenTimes.current['post_detail_modal']) {
-      const durationMs = Date.now() - modalOpenTimes.current['post_detail_modal'];
-      delete modalOpenTimes.current['post_detail_modal'];
-      trackBackEvent({ uiName: 'post_detail_modal', actionType: 'close', durationMs });
+      modalOpenTimes.current['POST_DETAIL'] = Date.now();
+    } else if (modalOpenTimes.current['POST_DETAIL']) {
+      const durationMs = Date.now() - modalOpenTimes.current['POST_DETAIL'];
+      delete modalOpenTimes.current['POST_DETAIL'];
+      trackBackEvent({ pageKey: 'POST_DETAIL', actionType: 'close', durationMs });
     }
   }, [selectedPostForDetail]);
 
   useEffect(() => {
     if (selectedCategory) {
-      modalOpenTimes.current['category_detail_modal'] = Date.now();
-    } else if (modalOpenTimes.current['category_detail_modal']) {
-      const durationMs = Date.now() - modalOpenTimes.current['category_detail_modal'];
-      delete modalOpenTimes.current['category_detail_modal'];
-      trackBackEvent({ uiName: 'category_detail_modal', actionType: 'close', durationMs });
+      modalOpenTimes.current['CATEGORY_DETAIL'] = Date.now();
+    } else if (modalOpenTimes.current['CATEGORY_DETAIL']) {
+      const durationMs = Date.now() - modalOpenTimes.current['CATEGORY_DETAIL'];
+      delete modalOpenTimes.current['CATEGORY_DETAIL'];
+      trackBackEvent({ pageKey: 'CATEGORY_DETAIL', actionType: 'close', durationMs });
     }
   }, [selectedCategory]);
 
   useEffect(() => {
     if (selectedEvent) {
-      modalOpenTimes.current['event_detail_modal'] = Date.now();
-    } else if (modalOpenTimes.current['event_detail_modal']) {
-      const durationMs = Date.now() - modalOpenTimes.current['event_detail_modal'];
-      delete modalOpenTimes.current['event_detail_modal'];
-      trackBackEvent({ uiName: 'event_detail_modal', actionType: 'close', durationMs });
+      modalOpenTimes.current['EVENT_DETAIL'] = Date.now();
+    } else if (modalOpenTimes.current['EVENT_DETAIL']) {
+      const durationMs = Date.now() - modalOpenTimes.current['EVENT_DETAIL'];
+      delete modalOpenTimes.current['EVENT_DETAIL'];
+      trackBackEvent({ pageKey: 'EVENT_DETAIL', actionType: 'close', durationMs });
     }
   }, [selectedEvent]);
 
   useEffect(() => {
     if (isCreateModalOpen) {
-      modalOpenTimes.current['create_meetup_modal'] = Date.now();
-    } else if (modalOpenTimes.current['create_meetup_modal']) {
-      const durationMs = Date.now() - modalOpenTimes.current['create_meetup_modal'];
-      delete modalOpenTimes.current['create_meetup_modal'];
-      trackBackEvent({ uiName: 'create_meetup_modal', actionType: 'close', durationMs });
+      modalOpenTimes.current['CREATE_MEETUP'] = Date.now();
+    } else if (modalOpenTimes.current['CREATE_MEETUP']) {
+      const durationMs = Date.now() - modalOpenTimes.current['CREATE_MEETUP'];
+      delete modalOpenTimes.current['CREATE_MEETUP'];
+      trackBackEvent({ pageKey: 'CREATE_MEETUP', actionType: 'close', durationMs });
     }
   }, [isCreateModalOpen]);
 
   useEffect(() => {
     if (isAuthModalOpen) {
-      modalOpenTimes.current['auth_modal'] = Date.now();
-    } else if (modalOpenTimes.current['auth_modal']) {
-      const durationMs = Date.now() - modalOpenTimes.current['auth_modal'];
-      delete modalOpenTimes.current['auth_modal'];
-      trackBackEvent({ uiName: 'auth_modal', actionType: 'close', durationMs });
+      modalOpenTimes.current['AUTH'] = Date.now();
+    } else if (modalOpenTimes.current['AUTH']) {
+      const durationMs = Date.now() - modalOpenTimes.current['AUTH'];
+      delete modalOpenTimes.current['AUTH'];
+      trackBackEvent({ pageKey: 'AUTH', actionType: 'close', durationMs });
     }
   }, [isAuthModalOpen]);
 
   useEffect(() => {
     if (isDashboardOpen) {
-      modalOpenTimes.current['dashboard_modal'] = Date.now();
-    } else if (modalOpenTimes.current['dashboard_modal']) {
-      const durationMs = Date.now() - modalOpenTimes.current['dashboard_modal'];
-      delete modalOpenTimes.current['dashboard_modal'];
-      trackBackEvent({ uiName: 'dashboard_modal', actionType: 'close', durationMs });
+      modalOpenTimes.current['DASHBOARD'] = Date.now();
+    } else if (modalOpenTimes.current['DASHBOARD']) {
+      const durationMs = Date.now() - modalOpenTimes.current['DASHBOARD'];
+      delete modalOpenTimes.current['DASHBOARD'];
+      trackBackEvent({ pageKey: 'DASHBOARD', actionType: 'close', durationMs });
     }
   }, [isDashboardOpen]);
+
+  useEffect(() => {
+    if (isJoinRequestModalOpen) {
+      modalOpenTimes.current['JOIN_REQUEST'] = Date.now();
+    } else if (modalOpenTimes.current['JOIN_REQUEST']) {
+      const durationMs = Date.now() - modalOpenTimes.current['JOIN_REQUEST'];
+      delete modalOpenTimes.current['JOIN_REQUEST'];
+      trackBackEvent({ pageKey: 'JOIN_REQUEST', actionType: 'close', durationMs });
+    }
+  }, [isJoinRequestModalOpen]);
+
+  useEffect(() => {
+    if (isMatchRequestsOpen) {
+      modalOpenTimes.current['MATCH_REQUESTS'] = Date.now();
+    } else if (modalOpenTimes.current['MATCH_REQUESTS']) {
+      const durationMs = Date.now() - modalOpenTimes.current['MATCH_REQUESTS'];
+      delete modalOpenTimes.current['MATCH_REQUESTS'];
+      trackBackEvent({ pageKey: 'MATCH_REQUESTS', actionType: 'close', durationMs });
+    }
+  }, [isMatchRequestsOpen]);
   const [reviews, setReviews] = useState<ReviewItem[]>([
     {
       id: 'rev-sample-1',
