@@ -498,24 +498,6 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
               </div>
             )}
           </div>
-
-          {/* Become a Pro Host Banner */}
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-[24px] p-5 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">✨</span>
-              <h4 className="text-sm font-bold text-amber-950">PRO 전문 동행 호스트 등록</h4>
-            </div>
-            <p className="text-xs text-amber-900 leading-relaxed">
-              운동 코칭, 스냅 촬영, 외국어 투어 등 나만의 전문성을 살려 1:1 유료 동행을 열어보세요. 당도 90 이상 및 본인인증 완료 시 등록할 수 있습니다.
-            </p>
-            <button
-              type="button"
-              onClick={() => alert('PRO 호스트 신청 자격 요건(당도 90+ & 본인확인 완료)을 충족하셨습니다! 새 공고 작성 시 [PRO 전문 동행] 탭을 선택해주세요.')}
-              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition-colors"
-            >
-              PRO 호스트 자격 확인하기
-            </button>
-          </div>
         </div>
       )}
     </div>

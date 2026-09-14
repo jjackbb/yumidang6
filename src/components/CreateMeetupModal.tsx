@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, MapPin, Lock, Info, Sparkles } from 'lucide-react';
+import { X, Calendar, MapPin, Lock, Info, Sparkles, ShieldCheck, AlertCircle } from 'lucide-react';
 import { MeetupPost, CurrentUser } from '../types';
 
 interface CreateMeetupModalProps {
@@ -31,6 +31,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
 
   // Phase 6: Pro Paid Companion States
   const [companionType, setCompanionType] = useState<'free' | 'pro'>('free');
+  const [showProRequirementModal, setShowProRequirementModal] = useState(false);
   const [hourlyRate, setHourlyRate] = useState<number>(25000);
   const [specialty, setSpecialty] = useState<string>('스냅 촬영 & 감성 보정');
   const [curriculum, setCurriculum] = useState<string>('10분: 촬영 컨셉 상담\n40분: 스냅 촬영\n10분: 사진 모니터링');
@@ -38,6 +39,16 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
   const [excluded, setExcluded] = useState<string>('카페 음료비 개인 부담');
 
   const isEditing = Boolean(editPost);
+
+  const handleSelectProType = () => {
+    // PRO 전문 동행 개설 조건: 당도 90 이상 및 본인인증 완료
+    const isEligible = currentUser && currentUser.sugarContent >= 90 && currentUser.isPhoneVerified;
+    if (!isEligible) {
+      setShowProRequirementModal(true);
+      return;
+    }
+    setCompanionType('pro');
+  };
 
   useEffect(() => {
     if (editPost) {
@@ -210,7 +221,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setCompanionType('pro')}
+                onClick={handleSelectProType}
                 className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                   companionType === 'pro'
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/25 scale-[1.02]'
@@ -458,6 +469,74 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* PRO Host Requirement Modal Popup */}
+      {showProRequirementModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div
+            className="bg-white w-full max-w-[360px] rounded-3xl p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shadow-inner">
+              <Sparkles className="w-7 h-7" />
+            </div>
+
+            <h4 className="text-lg font-bold text-gray-900 mb-1.5">
+              PRO 전문 동행 개설 안내
+            </h4>
+            <p className="text-xs text-gray-500 leading-relaxed mb-5">
+              스냅 촬영, 운동 코칭, 투어 등 유료 오퍼를 제공하는 PRO 동행은 안전한 1:1 만남과 신뢰를 위해 기준 충족 후 개설할 수 있습니다.
+            </p>
+
+            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-5 text-left text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={`w-4 h-4 ${currentUser?.isPhoneVerified ? 'text-emerald-500' : 'text-gray-400'}`} />
+                  <span className="font-medium text-gray-700">휴대폰 본인확인</span>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                  currentUser?.isPhoneVerified ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {currentUser?.isPhoneVerified ? '인증 완료' : '미완료'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🍯</span>
+                  <span className="font-medium text-gray-700">매너 당도 90 Brix 이상</span>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                  (currentUser?.sugarContent || 0) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                }`}>
+                  현재 {currentUser?.sugarContent || 50} Brix
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-purple-400" />
+                  <span className="font-medium text-gray-700">일반 동행 완료 이력</span>
+                </div>
+                <span className="text-[11px] font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                  3회 이상 권장
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowProRequirementModal(false);
+                setCompanionType('free');
+              }}
+              className="w-full py-3 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-purple-500/20 active:scale-98"
+            >
+              일반 취향 동행으로 모집하기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

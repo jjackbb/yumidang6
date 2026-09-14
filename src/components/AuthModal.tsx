@@ -13,7 +13,7 @@ type AuthMode = 'signup' | 'signin';
 type SignUpStep = 'terms' | 'phone' | 'profile';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
-  const [mode, setMode] = useState<AuthMode>('signup');
+  const [mode, setMode] = useState<AuthMode>('signin');
   const [step, setStep] = useState<SignUpStep>('terms');
 
   // Input states
@@ -63,6 +63,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   };
 
   const resetForm = () => {
+    setMode('signin');
     setPhone('010-1234-5678');
     setOtpSent(false);
     setOtpCode('');
@@ -72,6 +73,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setInfoMessage('');
     setStep('terms');
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode('signin');
+      setOtpSent(false);
+      setOtpCode('');
+      setErrorMessage('');
+      setInfoMessage('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -198,6 +209,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           <button
             type="button"
             onClick={() => {
+              setMode('signin');
+              setErrorMessage('');
+              setInfoMessage('');
+            }}
+            className={`flex-1 pb-2.5 text-sm font-bold text-center border-b-2 transition-all ${
+              mode === 'signin'
+                ? 'text-[#6c2cf5] border-[#6c2cf5]'
+                : 'text-gray-400 border-transparent hover:text-gray-600'
+            }`}
+          >
+            기존 번호로 로그인
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               setMode('signup');
               setStep('terms');
               setErrorMessage('');
@@ -210,21 +236,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             }`}
           >
             휴대폰 본인인증 가입
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('signin');
-              setErrorMessage('');
-              setInfoMessage('');
-            }}
-            className={`flex-1 pb-2.5 text-sm font-bold text-center border-b-2 transition-all ${
-              mode === 'signin'
-                ? 'text-[#6c2cf5] border-[#6c2cf5]'
-                : 'text-gray-400 border-transparent hover:text-gray-600'
-            }`}
-          >
-            기존 번호로 로그인
           </button>
         </div>
 
