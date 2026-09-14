@@ -1,7 +1,8 @@
+import { postStatusLabel } from '../utils/postLifecycle';
 import { CompanionRequests, RequestTab } from './CompanionRequests';
 import React, { useState, useRef } from 'react';
 import { User, Heart, Calendar, ShieldCheck, ChevronRight, Settings, Star, Award, LogOut, Sparkles, MessageSquare, Clock, Lock, CreditCard, Camera } from 'lucide-react';
-import { Appointment, CurrentUser, ReviewItem, EscrowPayment, JoinRequest } from '../types';
+import { Appointment, CurrentUser, MeetupPost, ReviewItem, EscrowPayment, JoinRequest } from '../types';
 
 interface MyPageViewProps {
   appointments: Appointment[];
@@ -15,6 +16,9 @@ interface MyPageViewProps {
   onOpenRequestChat: (id: string) => void;
   onOpenRequestProfile: (id: string) => void;
   onCancelRequest: (id: string) => void;
+  onReconfirmRequest: (id: string, revision: number, agree: boolean, simulate?: boolean) => void;
+  posts: MeetupPost[];
+  onOpenOwnPost: (id: string) => void;
   currentUser: CurrentUser | null;
   onOpenAuth: () => void;
   onOpenKyc: () => void;
@@ -25,7 +29,7 @@ interface MyPageViewProps {
 }
 
 export const MyPageView: React.FC<MyPageViewProps> = ({
-  appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost, onOpenRequestChat, onOpenRequestProfile, onCancelRequest,
+  appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost, onOpenRequestChat, onOpenRequestProfile, onCancelRequest, onReconfirmRequest, posts, onOpenOwnPost,
   onOpenDashboard,
   currentUser,
   onOpenAuth,
@@ -79,7 +83,8 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
 
   return (
     <div className="px-5 pt-3 pb-24 text-left space-y-4">
-      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} /></div>
+      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} onReconfirm={onReconfirmRequest} /></div>
+      <section aria-label="내가 쓴 공고" className="bg-white rounded-2xl p-4"><h2 className="text-sm font-bold mb-3">내가 쓴 공고</h2>{posts.filter(post => post.authorId === currentUser.id && post.status !== 'deleted').length === 0 ? <p className="text-xs text-gray-500">아직 작성한 공고가 없어요.</p> : posts.filter(post => post.authorId === currentUser.id && post.status !== 'deleted').map(post => <button key={post.id} onClick={() => onOpenOwnPost(post.id)} className="w-full text-left py-3 border-b border-gray-100 text-xs"><b className="block">{post.title}</b><span className="block text-gray-500 mt-1">{postStatusLabel(post)} · {post.time}</span></button>)}</section>
       {/* Profile Card */}
       <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">

@@ -1,3 +1,4 @@
+import { postStatusLabel } from '../utils/postLifecycle';
 import React, { useState } from 'react';
 import { MapPin, Navigation, Search, Filter, Users, Calendar } from 'lucide-react';
 import { MeetupPost } from '../types';
@@ -102,13 +103,13 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ posts, onSelectPost })
               </div>
               <span
                 className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] ${
-                  post.status === 'closed' || post.currentMembers >= 2
+                  post.status !== 'recruiting'
                     ? 'bg-gray-100 text-gray-400'
                     : 'bg-purple-50 text-[#6c2cf5]'
                 }`}
               >
-                {post.status === 'closed' || post.currentMembers >= 2
-                  ? '2/2명 (마감)'
+                {post.status !== 'recruiting'
+                  ? postStatusLabel(post)
                   : '1/2명 (모집중)'}
               </span>
             </div>

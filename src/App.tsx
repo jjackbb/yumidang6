@@ -39,6 +39,8 @@ import { ChatView } from './components/ChatView';
 import { ChatListView } from './components/ChatListView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { publicProfileForMember } from './data/publicProfiles';
+import { CancellationDialog, LifecycleConfirmDialog, ScheduleConflictDialog } from './components/LifecycleDialogs';
+import { cancelAppointment as cancelConfirmedAppointment, closePost, conditionsOf, confirmChangedConditions, expirePosts, isConfirmedAppointment, isOpenRequest, isRecruiting, overlappingAppointments, recruitmentDeadline, updateRecruitingPost, type LifecycleState } from './utils/postLifecycle';
 import { acceptRequest, createRequestRoom, requestRoomId, roomAccess } from './utils/conversations';
 import { MyPageView } from './components/MyPageView';
 
@@ -49,6 +51,12 @@ import {
   mockNotifications,
 } from './data/mockData';
 import { Appointment, CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem, ChatRoom, PublicUserProfile, ScheduleProposal } from './types';
+
+type ConflictAction =
+  | { kind: 'join'; postId: string; message: string }
+  | { kind: 'accept'; requestId: string; simulateHost: boolean }
+  | { kind: 'proposal'; roomId: string; messageId: string; accepted: boolean; sample: boolean }
+  | { kind: 'create'; post: MeetupPost };
 
 export default function App() {
   // Navigation state
@@ -324,7 +332,7 @@ export default function App() {
   useEffect(() => {
     const delay = Math.min(...appointments.map(item => Date.parse(item.endsAt || '') - Date.now()).filter(value => value > 0));
     if (!Number.isFinite(delay)) return;
-    const timer = setTimeout(() => setNow(new Date()), Math.min(delay + 1, 2_147_483_647));
+    const timer = setTimeout(() => setNow(new Date()), Math.min(delay, 2_147_483_647));
     return () => clearTimeout(timer);
   }, [appointments, now]);
   const setAppointment = (next: Appointment | ((previous: Appointment) => Appointment)) => {
@@ -342,7 +350,8 @@ export default function App() {
   const [meetupPosts, setMeetupPosts] = useState<MeetupPost[]>(() =>
     mockMeetupPosts.map((p) => ({
       ...p,
-      maxMembers: 2,
+      maxMembers: 2, recruitmentEndsAt: p.recruitmentEndsAt || p.startsAt,
+      closedReason: mockAppointments.some(item => item.postId === p.id) ? 'matched' : p.closedReason,
       status: mockAppointments.some(item => item.postId === p.id) ? 'closed' : p.status,
       currentMembers: p.status === 'closed' || mockAppointments.some(item => item.postId === p.id) ? 2 : 1,
     }))
@@ -358,6 +367,10 @@ export default function App() {
       };
     }),
   ]);
+  const [postAction, setPostAction] = useState<{ id: string; mode: 'closed' | 'deleted' } | null>(null);
+  const [cancellationTarget, setCancellationTarget] = useState<{ id: string; kind: 'request' | 'appointment'; title: string } | null>(null);
+  const [conflictPrompt, setConflictPrompt] = useState<{ conflicts: Appointment[]; action: ConflictAction } | null>(null);
+  const [lifecycleNotice, setLifecycleNotice] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
   const [selectedChatProfile, setSelectedChatProfile] = useState<PublicUserProfile | null>(null);
@@ -402,7 +415,7 @@ export default function App() {
     if (room.messages.some(item => item.proposal?.status === 'pending')) { alert('먼저 보낸 일정 변경 제안의 응답을 기다려 주세요.'); return; }
     setChatRooms(prev => prev.map(item => item.id === id ? { ...item, messages: [...item.messages, { id: crypto.randomUUID(), senderId: currentUser!.id, text: '일정·장소 변경을 제안했어요.', createdAt: new Date().toISOString(), proposal }] } : item));
   };
-  const resolveRoomProposal = (roomId: string, messageId: string, accepted: boolean, sample = false) => {
+  const resolveRoomProposal = (roomId: string, messageId: string, accepted: boolean, sample = false, ignoreConflict = false) => {
     const room = chatRooms.find(item => item.id === roomId);
     const message = room?.messages.find(item => item.id === messageId);
     const proposal = message?.proposal;
@@ -410,10 +423,11 @@ export default function App() {
     if (!room || !target || target.status === '동행 완료' || !proposal || proposal.status !== 'pending' || proposalLocks.current.has(messageId) || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts).canSend) return;
     if (sample ? currentUser?.id !== DEMO_USER_ID : message.senderId === currentUser?.id) return;
     if (accepted && !isValidMeetupRange(proposal.startsAt, proposal.endsAt)) return;
+    if (accepted && !ignoreConflict && warnConflict({ kind: 'proposal', roomId, messageId, accepted, sample }, target.participantIds || [], proposal.startsAt, proposal.endsAt, target.id)) return;
     proposalLocks.current.add(messageId);
     if (accepted) {
-      setAppointments(prev => prev.map(item => item.id === target.id ? { ...item, scheduledAt: proposal.startsAt, endsAt: proposal.endsAt, dateTime: proposal.newDateTime, location: proposal.newLocation } : item));
-      setMeetupPosts(prev => prev.map(item => item.id === target.postId ? { ...item, startsAt: proposal.startsAt, endsAt: proposal.endsAt, time: proposal.newDateTime, location: proposal.newLocation } : item));
+      setAppointments(prev => prev.map(item => item.id === target.id ? { ...item, scheduledAt: proposal.startsAt, endsAt: proposal.endsAt, dateTime: proposal.newDateTime, location: proposal.newLocation, addressDetail: proposal.newLocation } : item));
+      setMeetupPosts(prev => prev.map(item => item.id === target.postId ? { ...item, startsAt: proposal.startsAt, endsAt: proposal.endsAt, time: proposal.newDateTime, secretLocation: proposal.newLocation } : item));
     }
     setChatRooms(prev => prev.map(item => item.id === roomId ? { ...item, messages: [...item.messages.map(value => value.id === messageId ? { ...value, proposal: { ...proposal, status: accepted ? 'accepted' as const : 'rejected' as const } } : value), { id: crypto.randomUUID(), senderId: 'system', text: accepted ? '일정 변경이 수락됐어요. 새 약속을 확인해 주세요.' : '일정 변경이 거절됐어요. 기존 약속을 유지합니다.', createdAt: new Date().toISOString(), isSample: sample }] } : item));
     setNotifications(prev => [{ id: `notif-${crypto.randomUUID()}`, title: accepted ? '약속 변경 완료' : '약속 변경 거절', description: accepted ? proposal.newDateTime : '기존 일정이 유지됩니다.', type: 'matching', roomId, time: '방금', read: false }, ...prev]);
@@ -431,12 +445,29 @@ export default function App() {
     ...mockNotifications,
   ]);
 
-  // 1대1 동행 서비스 원칙(최대 2명) 강제 정규화
-  const activeMeetupPosts = meetupPosts.map((p) => ({
-    ...p,
-    maxMembers: 2,
-    currentMembers: p.status === 'closed' ? 2 : Math.min(p.currentMembers, 1),
-  }));
+  const lifecycleState = (): LifecycleState => ({ posts: meetupPosts, requests: joinRequests, rooms: chatRooms, appointments, notifications });
+  const applyLifecycle = (next: LifecycleState | null) => {
+    if (!next) { setLifecycleNotice('현재 상태에서 처리할 수 없어요. 최신 공고와 신청 상태를 확인해 주세요.'); return false; }
+    setMeetupPosts(next.posts); setJoinRequests(next.requests); setChatRooms(next.rooms); setAppointments(next.appointments); setNotifications(next.notifications);
+    return true;
+  };
+  useEffect(() => {
+    const next = expirePosts(lifecycleState(), now);
+    if (next) applyLifecycle(next);
+    const delay = Math.min(...meetupPosts.filter(post => post.status === 'recruiting').map(post => Date.parse(recruitmentDeadline(post) || '') - Date.now()).filter(ms => ms > 0));
+    if (!Number.isFinite(delay)) return;
+    const timer = setTimeout(() => setNow(new Date()), Math.min(delay, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [meetupPosts, now]);
+  useEffect(() => {
+    setSelectedPostForDetail(previous => previous ? meetupPosts.find(post => post.id === previous.id) || null : null);
+  }, [meetupPosts]);
+  const activeMeetupPosts = meetupPosts.filter(post => post.status !== 'deleted');
+  const warnConflict = (action: ConflictAction, participants: string[], startsAt?: string, endsAt?: string, excludeId?: string) => {
+    const conflicts = overlappingAppointments(appointments, participants, startsAt, endsAt, excludeId);
+    if (!conflicts.length) return false;
+    setConflictPrompt({ conflicts, action }); return true;
+  };
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
@@ -453,7 +484,9 @@ export default function App() {
     setIsCreateModalOpen(true);
   };
 
-  const handleCreateMeetup = (newPost: MeetupPost) => {
+  const handleCreateMeetup = (newPost: MeetupPost, ignoreConflict = false) => {
+    if (!currentUser || newPost.authorId !== currentUser.id || !isRecruiting(newPost)) return false;
+    if (!ignoreConflict && warnConflict({ kind: 'create', post: newPost }, [currentUser.id], newPost.startsAt, newPost.endsAt)) return false;
     setMeetupPosts((prev) => [newPost, ...prev]);
     trackFunnelEvent({
       step: 'CREATE_MEETUP_SUBMIT',
@@ -473,68 +506,39 @@ export default function App() {
       },
       ...prev,
     ]);
+    setIsCreateModalOpen(false);
+    return true;
   };
 
   const handleUpdatePost = (updatedPost: MeetupPost) => {
-    setMeetupPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)));
-    setSelectedPostForDetail(updatedPost);
-    setAppointments(prev => prev.map(item => item.postId === updatedPost.id && item.status !== '동행 완료'
-      ? { ...item, title: updatedPost.title, scheduledAt: updatedPost.startsAt, endsAt: updatedPost.endsAt, dateTime: updatedPost.time, location: updatedPost.location, addressDetail: updatedPost.secretLocation || updatedPost.location }
-      : item));
-    setEditingPost(null);
-    setNotifications((prev) => [
-      {
-        id: 'notif-' + Date.now(),
-        title: '동행 공고가 수정되었습니다',
-        description: `"${updatedPost.title}" 내용이 성공적으로 갱신되었습니다.`,
-        time: '방금',
-        read: false,
-        type: 'event',
-      },
-      ...prev,
-    ]);
+    if (!applyLifecycle(updateRecruitingPost(lifecycleState(), updatedPost, currentUser?.id))) return false;
+    setSelectedPostForDetail(updatedPost); setEditingPost(null);
+    return true;
   };
-
-  const handleClosePost = (postId: string) => {
-    setMeetupPosts((prev) =>
-      prev.map((p) => (p.id === postId ? { ...p, status: 'closed', currentMembers: 2 } : p))
-    );
-    setSelectedPostForDetail((prev) =>
-      prev && prev.id === postId ? { ...prev, status: 'closed', currentMembers: 2 } : prev
-    );
-    setNotifications((prev) => [
-      {
-        id: 'notif-' + Date.now(),
-        title: '동행 모집이 조기 마감되었습니다',
-        description: '공고가 2/2명 마감 상태로 전환되었습니다.',
-        time: '방금',
-        read: false,
-        type: 'matching',
-      },
-      ...prev,
-    ]);
+  const handleClosePost = (postId: string) => setPostAction({ id: postId, mode: 'closed' });
+  const handleDeletePost = (postId: string) => setPostAction({ id: postId, mode: 'deleted' });
+  const confirmPostAction = () => {
+    if (!postAction) return;
+    const succeeded = applyLifecycle(closePost(lifecycleState(), postAction.id, postAction.mode, currentUser?.id));
+    if (succeeded) setLifecycleNotice(postAction.mode === 'deleted' ? '공고를 삭제했어요. 이전 신청과 대화 기록은 남아 있어요.' : '모집을 마감했어요. 미확정 신청도 함께 종료됐어요.');
+    setPostAction(null);
   };
-
-  const handleDeletePost = (postId: string) => {
-    setMeetupPosts((prev) => prev.filter((p) => p.id !== postId));
-    setSelectedPostForDetail(null);
-    setNotifications((prev) => [
-      {
-        id: 'notif-' + Date.now(),
-        title: '동행 공고가 삭제되었습니다',
-        description: '등록하셨던 공고가 정상적으로 삭제 처리되었습니다.',
-        time: '방금',
-        read: false,
-        type: 'event',
-      },
-      ...prev,
-    ]);
-  };
-
   const handleEditPost = (post: MeetupPost) => {
-    setEditingPost(post);
-    setSelectedPostForDetail(null);
-    setIsCreateModalOpen(true);
+    if (post.authorId !== currentUser?.id || !isRecruiting(post)) { setLifecycleNotice('모집 중인 본인 공고만 수정할 수 있어요. 확정 약속은 대화방에서 변경을 제안해 주세요.'); return; }
+    setEditingPost(post); setSelectedPostForDetail(null); setIsCreateModalOpen(true);
+  };
+  const handleReconfirm = (requestId: string, revision: number, agree: boolean, simulate = false) => {
+    const request = joinRequests.find(item => item.id === requestId);
+    if (!request || !currentUser || (simulate && (currentUser.id !== DEMO_USER_ID || request.hostId !== currentUser.id))) return;
+    applyLifecycle(confirmChangedConditions(lifecycleState(), requestId, revision, agree, simulate ? request.requesterId : currentUser.id));
+  };
+  const simulatePostChange = (requestId: string) => {
+    const request = joinRequests.find(item => item.id === requestId);
+    const post = meetupPosts.find(item => item.id === request?.postId);
+    if (currentUser?.id !== DEMO_USER_ID || request?.requesterId !== currentUser.id || !request || !isOpenRequest(request) || !post || !isRecruiting(post)) return;
+    const startsAt = new Date(Date.parse(post.startsAt!) + 3600000).toISOString();
+    const endsAt = new Date(Date.parse(post.endsAt!) + 3600000).toISOString();
+    applyLifecycle(updateRecruitingPost(lifecycleState(), { ...post, startsAt, endsAt, time: formatMeetupRange(startsAt, endsAt), publicLocation: '변경된 공개 만남 장소 · 시연' }, post.authorId));
   };
 
   // Phase 3: Initiate 1:1 Join Request Modal
@@ -547,7 +551,7 @@ export default function App() {
       alert('본인이 작성한 동행 공고에는 참여 신청할 수 없습니다.');
       return;
     }
-    if (post.status !== 'recruiting' || post.currentMembers >= 2) {
+    if (!isRecruiting(post) || post.currentMembers >= 2) {
       alert('이미 1:1 매칭이 마감된(2/2명) 공고입니다.');
       return;
     }
@@ -566,13 +570,15 @@ export default function App() {
   };
 
   // Phase 3: Submit Join Request
-  const handleSendJoinRequest = (postId: string, message: string) => {
+  const handleSendJoinRequest = (postId: string, message: string, ignoreConflict = false) => {
     const post = activeMeetupPosts.find((p) => p.id === postId);
-    if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || post.status !== 'recruiting' || !message.trim()) return false;
-    if (joinRequests.some(request => request.postId === post.id && request.requesterId === currentUser.id && ['pending', 'accepted'].includes(request.status))) {
+    if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || !isRecruiting(post) || !message.trim()) return false;
+    if (joinRequests.some(request => request.postId === post.id && request.requesterId === currentUser.id && ['pending', 'reconfirming', 'accepted'].includes(request.status))) {
       alert('이미 신청한 동행이에요. Me에서 신청 상태를 확인해 주세요.');
       return false;
     }
+
+    if (!ignoreConflict && warnConflict({ kind: 'join', postId, message }, [currentUser.id], post.startsAt, post.endsAt)) return false;
 
     trackFunnelEvent({
       step: 'JOIN_REQUEST_SUBMIT',
@@ -591,7 +597,7 @@ export default function App() {
       requesterAvatar: currentUser.avatar,
       requesterSugar: currentUser.sugarContent,
       message,
-      status: 'pending',
+      status: 'pending', conditionSnapshot: conditionsOf(post),
       createdAt: '방금',
     };
 
@@ -613,24 +619,26 @@ export default function App() {
       ...prev,
     ]);
 
+    setIsJoinRequestModalOpen(false); setSelectedPostForJoin(null);
     return true;
   };
 
   // A request enables conversation; only the host's final acceptance confirms a match.
-  const handleAcceptRequest = (requestId: string, simulateHost = false) => {
+  const handleAcceptRequest = (requestId: string, simulateHost = false, ignoreConflict = false) => {
     const targetReq = joinRequests.find(item => item.id === requestId);
     if (!targetReq || !currentUser) return;
     if (simulateHost && (currentUser.id !== DEMO_USER_ID || targetReq.requesterId !== currentUser.id)) return;
     const targetPost = meetupPosts.find(item => item.id === targetReq.postId);
     const nextRequests = acceptRequest(joinRequests, targetPost, requestId, simulateHost ? targetReq.hostId : currentUser.id);
     if (!nextRequests || !targetPost || matchingLocks.current.has(targetReq.postId)) return;
+    if (!ignoreConflict && warnConflict({ kind: 'accept', requestId, simulateHost }, [targetReq.hostId, targetReq.requesterId], targetPost.startsAt, targetPost.endsAt)) return;
     matchingLocks.current.add(targetReq.postId);
     const roomId = requestRoomId(requestId), appointmentId = `apt-${requestId}`;
     const partner = currentUser.id === targetReq.hostId
       ? { name: targetReq.requesterName, avatar: targetReq.requesterAvatar, bio: targetReq.message }
       : { name: targetPost.author, avatar: targetPost.avatar, bio: '' };
     setJoinRequests(nextRequests);
-    setMeetupPosts(prev => prev.map(item => item.id === targetReq.postId ? { ...item, status: 'closed', currentMembers: 2 } : item));
+    setMeetupPosts(prev => prev.map(item => item.id === targetReq.postId ? { ...item, status: 'closed', closedReason: 'matched', currentMembers: 2 } : item));
     setAppointment({ id: appointmentId, postId: targetPost.id, scheduledAt: targetPost.startsAt, endsAt: targetPost.endsAt,
       participantIds: [targetReq.hostId, targetReq.requesterId], title: targetPost.title, dateTime: targetPost.time, location: targetPost.location,
       status: '매칭 확정', partnerName: partner.name, partnerAvatar: partner.avatar, partnerRating: 0, partnerBio: partner.bio,
@@ -638,7 +646,7 @@ export default function App() {
       confirmedGuests: 2, totalGuests: 2, dDay: '', appointmentBadge: '1:1 매칭 확정' });
     setChatRooms(prev => prev.map(room => {
       const request = nextRequests.find(item => item.id === room.requestId);
-      if (!request || request.postId !== targetReq.postId || !joinRequests.some(item => item.id === request.id && item.status === 'pending')) return room;
+      if (!request || request.postId !== targetReq.postId || !joinRequests.some(item => item.id === request.id && isOpenRequest(item))) return room;
       return { ...room, appointmentId: request.id === requestId ? appointmentId : room.appointmentId,
         messages: [...room.messages, { id: crypto.randomUUID(), senderId: 'system', createdAt: new Date().toISOString(), text: request.id === requestId ? '작성자가 수락해 동행이 확정됐어요. 같은 방에서 약속을 조율하세요.' : '작성자가 다른 동행자와 확정해 이 신청이 종료됐어요.' }] };
     }));
@@ -646,15 +654,30 @@ export default function App() {
     trackFunnelEvent({ step: 'MATCH_ACCEPT', targetPostId: targetPost.id, pageKey: 'MATCH_REQUESTS', metadata: { requesterId: targetReq.requesterId, simulated: simulateHost } });
     setActiveRoomId(roomId); setActiveTab('chat');
   };
-  const endRequest = (requestId: string, status: 'rejected' | 'cancelled') => {
+  const endRequest = (requestId: string, status: 'rejected' | 'cancelled', reason = '') => {
     const request = joinRequests.find(item => item.id === requestId);
-    if (!request || request.status !== 'pending' || (status === 'rejected' ? request.hostId : request.requesterId) !== currentUser?.id) return;
-    const text = status === 'rejected' ? '작성자가 신청을 거절했어요.' : '신청자가 동행 신청을 취소했어요.';
-    setJoinRequests(prev => prev.map(item => item.id === requestId && item.status === 'pending' ? { ...item, status } : item));
+    if (!request || !isOpenRequest(request) || (status === 'rejected' ? request.hostId : request.requesterId) !== currentUser?.id) return false;
+    const text = status === 'rejected' ? '작성자가 신청을 거절했어요.' : `신청자가 동행 신청을 취소했어요. 사유: ${reason}`;
+    setJoinRequests(prev => prev.map(item => item.id === requestId && isOpenRequest(item) ? { ...item, status, cancellationReason: reason } : item));
     setChatRooms(prev => prev.map(room => room.requestId === requestId ? { ...room, messages: [...room.messages, { id: crypto.randomUUID(), senderId: 'system', text, createdAt: new Date().toISOString() }] } : room));
-    setNotifications(prev => [{ id: `notif-${crypto.randomUUID()}`, title: status === 'rejected' ? '신청 거절' : '신청 취소', description: request.postTitle, roomId: requestRoomId(requestId), type: 'matching', time: '방금', read: false }, ...prev]);
+    setNotifications(prev => [{ id: crypto.randomUUID(), title: status === 'rejected' ? '신청 거절' : '신청 취소', description: text, roomId: requestRoomId(requestId), type: 'matching', time: '방금', read: false }, ...prev]);
+    return true;
   };
   const handleRejectRequest = (id: string) => endRequest(id, 'rejected');
+  const openRequestCancellation = (id: string) => {
+    const request = joinRequests.find(item => item.id === id);
+    if (request && isOpenRequest(request) && request.requesterId === currentUser?.id) setCancellationTarget({ id, kind: 'request', title: request.postTitle });
+  };
+  const openAppointmentCancellation = (target: Appointment) => {
+    if (currentUser && target.participantIds?.includes(currentUser.id) && isConfirmedAppointment(target)) setCancellationTarget({ id: target.id, kind: 'appointment', title: target.title });
+  };
+  const confirmCancellation = (reason: string) => {
+    if (!cancellationTarget) return false;
+    const success = cancellationTarget.kind === 'request' ? endRequest(cancellationTarget.id, 'cancelled', reason) : applyLifecycle(cancelConfirmedAppointment(lifecycleState(), cancellationTarget.id, reason, currentUser?.id));
+    if (success) setCancellationTarget(null);
+    return success;
+  };
+
   // Phase 4: Handle Emergency / No-Show Report Submit
   const handleReportSubmit = (reasonType: string, details: string) => {
     const reasonMap: Record<string, string> = {
@@ -680,6 +703,7 @@ export default function App() {
 
   // Phase 4: Send 10-minute Arrival Notice
   const handleSendArrivalNotice = () => {
+    if (!isConfirmedAppointment(appointment)) return;
     setNotifications((prev) => [
       {
         id: 'notif-' + Date.now(),
@@ -818,6 +842,8 @@ export default function App() {
     setIsEscrowModalOpen(true);
   };
 
+  const dashboardPartner = chatRooms.find(room => room.appointmentId === appointment.id)?.members.find(member => member.id !== currentUser?.id);
+  const dashboardProfile = dashboardPartner ? publicProfileForMember(dashboardPartner, currentUser) : undefined;
   const completionActionsFor = (target: Appointment) => ({
     availability: completionAvailability(target, currentUser?.id, now),
     isCompleted: target.status === '동행 완료',
@@ -828,8 +854,17 @@ export default function App() {
   const existingPostRoom = selectedPostForDetail && chatRooms.find(room =>
     room.postId === selectedPostForDetail.id &&
     room.members.some(member => member.id === currentUser?.id) &&
-    (room.appointmentId || joinRequests.some(request => request.id === room.requestId && request.status === 'pending'))
+    (room.appointmentId || joinRequests.some(request => request.id === room.requestId && isOpenRequest(request)))
   );
+
+  const continueConflict = () => {
+    const action = conflictPrompt?.action; setConflictPrompt(null);
+    if (!action) return;
+    if (action.kind === 'join') handleSendJoinRequest(action.postId, action.message, true);
+    if (action.kind === 'accept') handleAcceptRequest(action.requestId, action.simulateHost, true);
+    if (action.kind === 'proposal') resolveRoomProposal(action.roomId, action.messageId, action.accepted, action.sample, true);
+    if (action.kind === 'create') handleCreateMeetup(action.post, true);
+  };
 
   return (
     <div className="min-h-screen bg-[#f2f4f8] flex justify-center selection:bg-purple-100">
@@ -887,7 +922,10 @@ export default function App() {
             onOpenDashboard={() => activeRoomAppointment && openAppointment(activeRoomAppointment)}
             onOpenVoiceCall={() => { if(activeRoomAppointment) { setActiveAppointmentId(activeRoomAppointment.id); setIsVoiceCallOpen(true); } }}
             onAccept={() => activeRoomRequest && handleAcceptRequest(activeRoomRequest.id)} onReject={() => activeRoomRequest && handleRejectRequest(activeRoomRequest.id)}
-            onCancel={() => activeRoomRequest && endRequest(activeRoomRequest.id, 'cancelled')}
+            onCancel={() => activeRoomRequest && openRequestCancellation(activeRoomRequest.id)}
+            onCancelAppointment={() => activeRoomAppointment && openAppointmentCancellation(activeRoomAppointment)}
+            onReconfirm={(revision, agree, simulate) => activeRoomRequest && handleReconfirm(activeRoomRequest.id, revision, agree, simulate)}
+            onSimulatePostChange={() => activeRoomRequest && simulatePostChange(activeRoomRequest.id)}
             onSimulateAccept={() => activeRoomRequest && handleAcceptRequest(activeRoomRequest.id, true)}
             onSend={(text, sample) => sendRoomMessage(activeRoom.id, text, sample)} onDraft={text => updateRoomDraft(activeRoom.id, text)}
             onPropose={proposal => proposeRoomSchedule(activeRoom.id, proposal)} onResolveProposal={(id, accepted, sample) => resolveRoomProposal(activeRoom.id, id, accepted, sample)}
@@ -907,8 +945,11 @@ export default function App() {
               onRejectRequest={handleRejectRequest}
               onOpenRequestChat={openRequestRoom}
               onOpenRequestProfile={openRequestProfile}
-              onCancelRequest={id => endRequest(id, 'cancelled')}
-              onOpenRequestPost={(postId) => setSelectedPostForDetail(activeMeetupPosts.find(post => post.id === postId) || null)}
+              onCancelRequest={openRequestCancellation}
+              onReconfirmRequest={handleReconfirm}
+              posts={meetupPosts}
+              onOpenOwnPost={id => setSelectedPostForDetail(meetupPosts.find(post => post.id === id) || null)}
+              onOpenRequestPost={(postId) => setSelectedPostForDetail(meetupPosts.find(post => post.id === postId) || null)}
               currentUser={currentUser}
               onOpenAuth={() => setIsAuthModalOpen(true)}
               onOpenKyc={() => setIsKycModalOpen(true)}
@@ -942,6 +983,9 @@ export default function App() {
           onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
           onOpenReport={() => setIsReportOpen(true)}
           onSendArrivalNotice={handleSendArrivalNotice}
+          onCancelAppointment={() => openAppointmentCancellation(appointment)}
+          partnerProfile={dashboardProfile}
+          onOpenPartnerProfile={() => dashboardProfile && setSelectedChatProfile(dashboardProfile)}
           completionActions={completionActionsFor(appointment)}
         />
 
@@ -990,6 +1034,7 @@ export default function App() {
           onEditPost={handleEditPost}
           onClosePost={handleClosePost}
           onDeletePost={handleDeletePost}
+          hasLinkedAppointment={appointments.some(item => item.postId === selectedPostForDetail?.id && (isConfirmedAppointment(item) || item.status === '동행 완료'))}
           onOpenExistingChat={existingPostRoom ? () => {
             setSelectedPostForDetail(null); setSelectedCategory(null); setSelectedEvent(null); openRoom(existingPostRoom);
           } : undefined}
@@ -998,14 +1043,14 @@ export default function App() {
 
         {/* Phase 3 Modal: 1:1 동행 신청서 모달 (신청자) */}
         <JoinRequestModal
-          post={selectedPostForJoin}
+          post={meetupPosts.find(post => post.id === selectedPostForJoin?.id) || null}
           isOpen={isJoinRequestModalOpen}
           onClose={() => {
             setIsJoinRequestModalOpen(false);
             setSelectedPostForJoin(null);
           }}
           currentUser={currentUser}
-          currentAppointment={appointment}
+          appointments={myAppointments}
           onSubmitRequest={handleSendJoinRequest}
         />
 
@@ -1053,6 +1098,10 @@ export default function App() {
         />
 
         {selectedChatProfile && <UserProfileModal profile={selectedChatProfile} onClose={() => setSelectedChatProfile(null)} backLabel="이전 화면으로 돌아가기" />}
+        {postAction && <LifecycleConfirmDialog title={postAction.mode === 'deleted' ? '공고 삭제' : '모집 마감'} description={postAction.mode === 'deleted' ? '공고를 목록에서 지우고 남아 있는 신청을 종료합니다. 기존 신청·대화 기록은 보존돼요.' : '새 신청을 받지 않고 미확정 신청을 함께 종료합니다. 동행이 확정되는 것은 아니에요.'} actionLabel={postAction.mode === 'deleted' ? '공고 삭제하기' : '모집 마감하기'} onClose={() => setPostAction(null)} onConfirm={confirmPostAction} />}
+        {cancellationTarget && <CancellationDialog key={cancellationTarget.id} kind={cancellationTarget.kind} title={cancellationTarget.title} onClose={() => setCancellationTarget(null)} onConfirm={confirmCancellation} />}
+        {conflictPrompt && <ScheduleConflictDialog conflicts={conflictPrompt.conflicts} onClose={() => setConflictPrompt(null)} onContinue={continueConflict} />}
+        {lifecycleNotice && <div role="alert" className="fixed bottom-24 left-5 right-5 mx-auto max-w-sm bg-gray-900 text-white p-4 rounded-2xl z-[95] text-xs leading-relaxed shadow-lg">{lifecycleNotice}<button onClick={() => setLifecycleNotice(null)} className="block ml-auto mt-2 font-bold underline">안내 닫기</button></div>}
         {/* Modal: 회원가입 / 휴대폰 본인확인 (Phase 1) */}
         <AuthModal
           isOpen={isAuthModalOpen}

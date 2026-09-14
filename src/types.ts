@@ -63,6 +63,7 @@ export interface Appointment {
   companionType?: CompanionType;
   proDetails?: ProDetails;
   escrowPayment?: EscrowPayment;
+  cancellation?: { actorId: string; reason: string; createdAt: string };
 }
 
 export interface CategoryItem {
@@ -89,6 +90,9 @@ export interface MeetupPost {
   id: string;
   startsAt?: string;
   endsAt?: string;
+  recruitmentEndsAt?: string;
+  revision?: number;
+  closedReason?: 'manual' | 'matched' | 'cancelled';
   description?: string;
   eventId?: string;
   category: string;
@@ -104,7 +108,7 @@ export interface MeetupPost {
   currentMembers: number;
   maxMembers: number;
   tags: string[];
-  status: 'recruiting' | 'closed' | 'expired';
+  status: 'recruiting' | 'closed' | 'expired' | 'deleted';
   imageUrl?: string;
   companionType?: CompanionType;
   proDetails?: ProDetails;
@@ -169,11 +173,16 @@ export interface JoinRequest {
   requesterAvatar: string;
   requesterSugar: number;
   message: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'matched_with_other';
+  status: 'pending' | 'reconfirming' | 'accepted' | 'rejected' | 'cancelled' | 'matched_with_other' | 'post_closed' | 'post_expired' | 'post_deleted' | 'change_declined' | 'match_cancelled';
+  conditionSnapshot?: PostConditions;
+  reconfirmation?: { revision: number; changes: ConditionChange[]; status: 'pending' | 'accepted' | 'declined' };
+  cancellationReason?: string;
   createdAt: string;
 }
 
 export interface ChatMember { id: string; displayName: string; avatar: string }
+export type PostConditions = Pick<MeetupPost, 'title' | 'category' | 'description' | 'startsAt' | 'endsAt' | 'recruitmentEndsAt' | 'location' | 'publicLocation' | 'secretLocation' | 'partnerPreferences' | 'companionType' | 'proDetails'>;
+export interface ConditionChange { label: string; before: string; after: string }
 export interface ConversationMessage {
   id: string;
   senderId: string;
@@ -199,7 +208,7 @@ export interface ScheduleProposal {
   startsAt?: string;
   endsAt?: string;
   newLocation: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
   proposerName: string;
 }
 

@@ -7,8 +7,8 @@ import { formatClock, formatMeetupRange, isValidMeetupRange } from '../utils/mee
 interface CreateMeetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateMeetup: (newPost: MeetupPost) => void;
-  onUpdatePost?: (updatedPost: MeetupPost) => void;
+  onCreateMeetup: (newPost: MeetupPost) => boolean;
+  onUpdatePost?: (updatedPost: MeetupPost) => boolean;
   editPost?: MeetupPost | null;
   currentUser: CurrentUser | null;
 }
@@ -26,6 +26,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
   const [date, setDate] = useState(koreaDateKey(new Date(demoSchedule(1))));
   const [time, setTime] = useState('18:00');
   const [endDate, setEndDate] = useState(date);
+  const [customDeadline, setCustomDeadline] = useState('');
   const [endTime, setEndTime] = useState('19:00');
   const [description, setDescription] = useState('');
   const [scheduleError, setScheduleError] = useState('');
@@ -58,6 +59,8 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
 
   useLayoutEffect(() => {
     setScheduleError('');
+    const cutoff = editPost?.recruitmentEndsAt;
+    setCustomDeadline(cutoff && cutoff !== editPost?.startsAt ? `${koreaDateKey(new Date(cutoff))}T${formatClock(cutoff)}` : '');
     if (editPost) {
       setTitle(editPost.title);
       setCategory(editPost.category);
@@ -118,9 +121,13 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
       setScheduleError('종료 시각은 시작 시각보다 늦어야 해요. 다음 날 끝나면 종료 날짜도 바꿔 주세요.');
       return;
     }
+    const deadline = new Date(`${customDeadline || `${date}T${time}`}:00+09:00`);
+    if (!Number.isFinite(deadline.getTime()) || deadline.getTime() <= Date.now() || deadline.getTime() > Date.parse(startValue)) {
+      setScheduleError('모집 마감은 현재 시각 이후, 동행 시작 시각 이전으로 정해 주세요. 시작 시각과 같게 설정할 수도 있어요.'); return;
+    }
     const startsAt = new Date(startValue).toISOString();
     const endsAt = new Date(endValue).toISOString();
-    const schedule = { startsAt, endsAt, time: formatMeetupRange(startsAt, endsAt), description: description.trim() };
+    const schedule = { startsAt, endsAt, recruitmentEndsAt: deadline.toISOString(), time: formatMeetupRange(startsAt, endsAt), description: description.trim() };
 
     const parsedTags = tagInput
       ? tagInput
@@ -155,10 +162,10 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
         companionType,
         proDetails: proDetailsData,
       };
-      onUpdatePost(updated);
+      if (!onUpdatePost(updated)) return;
     } else {
       const newPost: MeetupPost = {
-        id: 'post-' + Date.now(),
+        id: `post-${crypto.randomUUID()}`,
         category,
         title: title.trim(),
         author: currentUser ? currentUser.maskedName : '조*미',
@@ -178,14 +185,14 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
         companionType,
         proDetails: proDetailsData,
       };
-      onCreateMeetup(newPost);
+      if (!onCreateMeetup(newPost)) return;
     }
 
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label={isEditing ? '동행 공고 수정' : '동행 공고 작성'} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -196,7 +203,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
             {isEditing ? '1:1 동행 공고 수정' : '새 1:1 동행 모집하기'}
           </h3>
           <button
-            onClick={onClose}
+            onClick={onClose} aria-label="공고 작성 창 닫기"
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -422,6 +429,9 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
             <div><label htmlFor="meetup-end-time" className="block text-xs font-bold text-gray-600 mb-1.5">종료 시각</label><input id="meetup-end-time" type="time" required value={endTime} onChange={e => { setEndTime(e.target.value); setScheduleError(''); }} className="w-full px-3 py-2 rounded-xl bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-purple-200" /></div>
           </div>
           <p className="text-xs text-gray-500">공고에 정한 종료 시각부터 동행 완료·평가가 가능해요.</p>
+          <label className="block text-xs font-bold text-gray-600">모집 마감 날짜·시각<input type="datetime-local" required value={customDeadline || `${date}T${time}`} max={`${date}T${time}`} onChange={event => setCustomDeadline(event.target.value)} className="block w-full bg-gray-50 rounded-xl p-3 mt-2 text-xs font-normal" /></label>
+          <p className="text-[11px] text-gray-500">기본값은 동행 시작 시각이에요. 이 시각부터 새 신청과 미확정 신청의 수락이 종료됩니다.</p>
+          {isEditing && <p className="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-3">일정·장소·활동 내용이나 상대 조건을 바꾸면 기존 신청자에게 다시 확인을 받아요. 확정된 동행은 채팅의 변경 제안을 이용해 주세요.</p>}
           {scheduleError && <p role="alert" className="text-xs text-red-600">{scheduleError}</p>}
 
           {/* Public Location (General Area) */}

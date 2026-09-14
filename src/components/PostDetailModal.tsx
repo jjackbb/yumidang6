@@ -17,6 +17,8 @@ import {
 import { MeetupPost, CurrentUser } from '../types';
 import { publicProfileForPost } from '../data/publicProfiles';
 import { UserProfileModal } from './UserProfileModal';
+import { isRecruiting, postStatusLabel, recruitmentDeadline } from '../utils/postLifecycle';
+import { formatSchedule } from '../utils/calendar';
 import { formatMeetupRange } from '../utils/meetupLifecycle';
 
 interface PostDetailModalProps {
@@ -31,6 +33,7 @@ interface PostDetailModalProps {
   onDeletePost: (postId: string) => void;
   canViewPrivateLocation?: boolean;
   onOpenExistingChat?: () => void;
+  hasLinkedAppointment?: boolean;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -44,7 +47,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onClosePost,
   onDeletePost,
   canViewPrivateLocation = false,
-  onOpenExistingChat,
+  onOpenExistingChat, hasLinkedAppointment = false,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   useEffect(() => setIsProfileOpen(false), [post?.id, isOpen]);
@@ -56,7 +59,9 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   );
 
   const isClosed = post.status === 'closed' || post.currentMembers >= 2;
-  const isExpired = post.status === 'expired';
+  const isExpired = post.status === 'expired' || (post.status === 'recruiting' && !isRecruiting(post));
+  const canEdit = isHost && isRecruiting(post) && !hasLinkedAppointment;
+  if (post.status === 'deleted') return <div role="dialog" aria-modal="true" aria-label="삭제된 공고" className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-5"><div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4"><h2 className="text-lg font-bold">삭제된 공고예요</h2><p className="text-sm text-gray-500">{post.title}</p><p className="text-xs text-gray-500">새 신청은 할 수 없어요. Me와 채팅에서 이전 신청과 대화 기록은 확인할 수 있습니다.</p><button onClick={onClose} className="w-full bg-[#6c2cf5] text-white rounded-xl p-3 text-sm">이전 화면으로</button></div></div>;
 
   return (
     <><div role="dialog" aria-modal="true" aria-label="동행 공고 상세" inert={isProfileOpen} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
@@ -82,7 +87,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
               </span>
             ) : isClosed ? (
               <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                2/2명 (마감)
+                {postStatusLabel(post)}
               </span>
             ) : (
               <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
@@ -101,6 +106,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
         {/* Content Body */}
         <div className="p-5 space-y-4">
+          {recruitmentDeadline(post) && <p className="text-[11px] text-gray-500">모집 마감: {formatSchedule(recruitmentDeadline(post)!)}</p>}
           {/* Title & Host Profile */}
           <div>
             <h3 className="text-[18px] font-bold text-gray-900 leading-snug">
@@ -193,7 +199,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             <div className="flex items-center gap-2 text-gray-700">
               <MapPin className="w-4 h-4 text-[#6c2cf5] flex-shrink-0" />
               <span>
-                {post.publicLocation ? `${post.location} (${post.publicLocation})` : post.location}
+                공고에 등록한 공개 지역: {post.publicLocation ? `${post.location} (${post.publicLocation})` : post.location}
               </span>
             </div>
           </div>
@@ -262,16 +268,19 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 <div className="p-3 bg-[#f0edff] rounded-xl text-[11px] text-[#6c2cf5] font-semibold text-center">
                   💡 내가 등록한 1:1 동행 공고입니다.
                 </div>
+                {hasLinkedAppointment && <p className="text-[11px] text-gray-500 leading-relaxed">확정된 약속은 채팅에서 변경을 제안하거나 약속 상세에서 취소해 주세요.</p>}
+                {onOpenExistingChat && <button onClick={onOpenExistingChat} className="w-full rounded-xl bg-[#6c2cf5] text-white py-3 text-xs font-bold">연결된 대화방으로 이동</button>}
                 <div className="grid grid-cols-2 gap-2">
                   <button
+                    disabled={!canEdit}
                     onClick={() => onEditPost(post)}
-                    className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                    className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>공고 수정</span>
                   </button>
 
-                  {!isClosed ? (
+                  {canEdit ? (
                     <button
                       onClick={() => onClosePost(post.id)}
                       className="py-3 bg-amber-100/70 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
@@ -290,8 +299,9 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 </div>
 
                 <button
+                  disabled={hasLinkedAppointment}
                   onClick={() => onDeletePost(post.id)}
-                  className="w-full py-2.5 text-rose-500 hover:bg-rose-50 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors"
+                  className="w-full py-2.5 text-rose-500 hover:bg-rose-50 disabled:opacity-40 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>공고 삭제하기</span>
@@ -314,7 +324,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   {isExpired
                     ? '모집 기간이 만료되었습니다'
                     : isClosed
-                    ? '1:1 매칭이 마감되었습니다'
+                    ? postStatusLabel(post)
                     : `유료 동행 미리보기 (${post.proDetails?.hourlyRate.toLocaleString()}원/시간)`}
                 </span>
               </button>
@@ -333,7 +343,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   {isExpired
                     ? '모집 기간이 만료되었습니다'
                     : isClosed
-                    ? '1:1 매칭이 마감되었습니다'
+                    ? postStatusLabel(post)
                     : '1:1 동행 참여 신청하기'}
                 </span>
               </button>

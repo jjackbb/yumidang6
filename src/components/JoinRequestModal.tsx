@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Send, Calendar, MapPin, AlertCircle, ShieldCheck, Sparkles, User } from 'lucide-react';
 import { MeetupPost, Appointment, CurrentUser } from '../types';
+import { overlappingAppointments } from '../utils/postLifecycle';
 import { publicProfileForPost } from '../data/publicProfiles';
 
 interface JoinRequestModalProps {
@@ -8,7 +9,7 @@ interface JoinRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: CurrentUser | null;
-  currentAppointment?: Appointment;
+  appointments: Appointment[];
   onSubmitRequest: (postId: string, message: string) => boolean;
 }
 
@@ -17,7 +18,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
   isOpen,
   onClose,
   currentUser,
-  currentAppointment,
+  appointments,
   onSubmitRequest,
 }) => {
   const [message, setMessage] = useState(
@@ -26,13 +27,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
 
   if (!isOpen || !post) return null;
 
-  // Check schedule collision: if currentAppointment has overlapping date
-  const hasScheduleCollision = Boolean(
-    currentAppointment &&
-      currentAppointment.status === '매칭 확정' &&
-      post.time.includes('2026.9.12') &&
-      currentAppointment.dateTime.includes('2026.9.12')
-  );
+  const conflicts = overlappingAppointments(appointments, currentUser ? [currentUser.id] : [], post.startsAt, post.endsAt);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +51,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
             <h3 className="text-[17px] font-bold text-gray-900">1:1 동행 참여 신청</h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={onClose} aria-label="신청 창 닫기"
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -90,13 +85,13 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
           </div>
 
           {/* Schedule Conflict Warning (Phase 3 Requirement) */}
-          {hasScheduleCollision && (
+          {conflicts.length > 0 && (
             <div className="p-3.5 bg-amber-50 rounded-2xl flex items-start gap-2 text-xs text-amber-900 animate-in fade-in">
               <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">⚠️ 일정 중복 주의 안내</span>
                 <span>
-                  이미 동일한 날짜({currentAppointment?.dateTime})에 확정된 동행 약속이 있습니다. 시간이 겹치지 않는지 확인 후 신청해주세요.
+                  {conflicts.map(item => `${item.title} (${item.dateTime})`).join(' · ')}와 시간이 겹쳐요. 신청 전에 계속 진행할지 확인합니다.
                 </span>
               </div>
             </div>

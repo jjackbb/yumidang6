@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Clock, MapPin, Share2, Calendar, MessageCircle, Star, Navigation, ShieldCheck, ShieldAlert, BellRing } from 'lucide-react';
-import { Appointment } from '../types';
+import { isConfirmedAppointment } from '../utils/postLifecycle';
+import { Appointment, PublicUserProfile } from '../types';
 import { CompletionActions, CompletionActionsProps } from './CompletionActions';
 
 interface DashboardModalProps {
@@ -12,6 +13,9 @@ interface DashboardModalProps {
   onOpenReport?: () => void;
   onSendArrivalNotice?: () => void;
   completionActions: CompletionActionsProps;
+  onCancelAppointment: () => void;
+  partnerProfile?: PublicUserProfile;
+  onOpenPartnerProfile?: () => void;
 }
 
 export const DashboardModal: React.FC<DashboardModalProps> = ({
@@ -22,12 +26,12 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
   onOpenSafetyRules,
   onOpenReport,
   onSendArrivalNotice,
-  completionActions,
+  completionActions, onCancelAppointment, partnerProfile, onOpenPartnerProfile,
 }) => {
   if (!isOpen || !appointment) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="약속 상세" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300"
         onClick={(e) => e.stopPropagation()}
@@ -35,7 +39,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
         {/* Header bar */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-pulse" />
+            <span className={`w-2.5 h-2.5 rounded-full ${isConfirmedAppointment(appointment) ? 'bg-[#22c55e]' : 'bg-gray-400'}`} />
             <h3 className="text-[17px] font-bold text-gray-900">참여 대시보드</h3>
           </div>
           <button
@@ -53,10 +57,10 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           <div className="bg-gradient-to-r from-[#6c2cf5]/10 to-[#8b5cf6]/10 rounded-[22px] p-4 flex items-center justify-between">
             <div>
               <span className="text-[12px] font-bold text-[#6c2cf5] bg-white/80 px-2.5 py-0.5 rounded-full shadow-2xs">
-                {appointment.status} (1:1 확정)
+                {appointment.status}
               </span>
               <p className="text-[18px] font-extrabold text-gray-900 mt-1.5">
-                {appointment.status === '동행 완료' ? '동행을 완료했어요' : completionActions.availability.canComplete ? '동행 완료를 확인해 주세요' : '함께할 약속을 확인해 주세요'}
+                {appointment.status === '동행 취소' ? '취소된 동행이에요' : appointment.status === '동행 완료' ? '동행을 완료했어요' : completionActions.availability.canComplete ? '동행 완료를 확인해 주세요' : '함께할 약속을 확인해 주세요'}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-white shadow-xs flex items-center justify-center text-[#6c2cf5]">
@@ -64,6 +68,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             </div>
           </div>
 
+          {appointment.cancellation && <p className="rounded-xl bg-gray-100 p-3 text-xs text-gray-600">취소 사유: {appointment.cancellation.reason}</p>}
           {/* Appointment Title */}
           <div>
             <h4 className="text-[20px] font-bold text-gray-900 leading-snug">
@@ -98,9 +103,9 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           {/* Partner Profile Card */}
           <div className="bg-white rounded-[22px] p-4 shadow-xs">
             <div className="text-xs font-semibold text-gray-500 mb-2.5">함께할 이웃</div>
-            <div className="flex items-center gap-3.5">
+            <button onClick={onOpenPartnerProfile} disabled={!partnerProfile} aria-label={`${partnerProfile?.displayName || appointment.partnerName}님의 상세 프로필 보기`} className="w-full text-left flex items-center gap-3.5">
               <img
-                src={appointment.partnerAvatar}
+                src={partnerProfile?.avatar || appointment.partnerAvatar}
                 alt={appointment.partnerName}
                 className="w-13 h-13 rounded-full object-cover shadow-2xs"
               />
@@ -109,18 +114,18 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                   <span className="font-bold text-[16px] text-gray-900">{appointment.partnerName}</span>
                   <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-0.5 rounded-lg text-amber-600 text-xs font-bold">
                     <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                    <span>당도 99 🍯</span>
+                    <span>{partnerProfile?.sugarContent == null ? '당도 정보 없음' : `당도 ${partnerProfile.sugarContent} 🍯`}</span>
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                   {appointment.partnerBio}
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* Menu recommendation */}
             <div className="mt-3.5 pt-3 flex items-center justify-between text-xs text-gray-600">
-              <span className="text-gray-500">추천 식사 메뉴:</span>
+              <span className="text-gray-500">동행 활동:</span>
               <span className="font-semibold text-gray-800">{appointment.menuRecommendation}</span>
             </div>
           </div>
@@ -128,6 +133,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           {/* Safety & Arrival Notice Bar (Phase 4) */}
           <div className="space-y-2">
             <button
+              disabled={!isConfirmedAppointment(appointment)}
               onClick={() => {
                 if (onSendArrivalNotice) {
                   onSendArrivalNotice();
@@ -135,7 +141,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                   alert("상대방에게 '10분 내 도착 예정입니다!' 안심 알림을 전송했습니다.");
                 }
               }}
-              className="w-full py-3 px-3 bg-[#f0edff] hover:bg-[#e4dcfa] text-[#6c2cf5] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed py-3 px-3 bg-[#f0edff] hover:bg-[#e4dcfa] text-[#6c2cf5] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
             >
               <BellRing className="w-3.5 h-3.5" />
               <span>[10분 전] 도착 예정 안심 알림 전송하기</span>
@@ -161,6 +167,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
 
           {/* Action Buttons */}
           <div className="space-y-2 pt-2 pb-2">
+            {isConfirmedAppointment(appointment) && <button onClick={onCancelAppointment} className="w-full text-xs text-rose-600 py-3 rounded-xl bg-rose-50">확정 동행 취소</button>}
             <CompletionActions {...completionActions} />
 
             <button

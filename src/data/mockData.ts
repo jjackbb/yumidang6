@@ -297,6 +297,11 @@ export const mockMeetupPosts: MeetupPost[] = [...seedMeetupPosts.map(post => {
   startsAt: demoSchedule(4, 11), endsAt: demoSchedule(4, 13), time: formatMeetupRange(demoSchedule(4, 11), demoSchedule(4, 13)),
   description: '사진전을 천천히 둘러보고 마음에 남은 작품 이야기를 나누고 싶어요. 입장권은 각자 준비하고 13시에 마무리해요.',
   status: 'recruiting', currentMembers: 1,
+}, {
+  ...seedMeetupPosts.find(post => post.id === 'post-3')!, id: 'post-overlap-demo', title: '오후 사진전 14:30~15:30 함께 관람해요',
+  startsAt: new Date(Date.parse(demoSchedule(2, 14)) + 1800000).toISOString(), endsAt: new Date(Date.parse(demoSchedule(2, 15)) + 1800000).toISOString(),
+  time: formatMeetupRange(new Date(Date.parse(demoSchedule(2, 14)) + 1800000).toISOString(), new Date(Date.parse(demoSchedule(2, 15)) + 1800000).toISOString()),
+  description: '한 시간 동안 사진전을 함께 관람해요. 입장권은 각자 준비합니다.', status: 'recruiting', currentMembers: 1,
 }];
 
 export const mockNotifications: NotificationItem[] = [

@@ -24,6 +24,7 @@ export function completionAvailability(appointment: Appointment, userId: string 
   const locked = (reason: string) => ({ canComplete: false, canReview: false, reason });
   if (!userId) return locked('로그인 후 참여한 동행을 완료할 수 있어요.');
   if (!appointment.participantIds?.includes(userId)) return locked('이 동행의 참여자만 완료·평가할 수 있어요.');
+  if (appointment.status === '동행 취소') return locked('취소된 동행은 완료·평가할 수 없어요. 이전 기록만 확인할 수 있습니다.');
   if (!['매칭 확정', '매칭완료', '동행 완료'].includes(appointment.status)) return locked('확정된 동행만 완료·평가할 수 있어요.');
   const start = appointmentStart(appointment);
   if (!Number.isFinite(start.getTime()) || !isValidMeetupRange(start.toISOString(), appointment.endsAt)) {

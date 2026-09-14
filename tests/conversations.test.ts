@@ -9,6 +9,8 @@ import type { Appointment, JoinRequest, MeetupPost } from '../src/types.ts';
 
 const post = {
   id: 'post',
+  startsAt: '2099-09-18T15:00:00+09:00',
+  endsAt: '2099-09-18T16:00:00+09:00',
   authorId: 'host',
   author: '작성자',
   title: '전시 동행',

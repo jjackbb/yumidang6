@@ -1,3 +1,4 @@
+import { postStatusLabel } from '../utils/postLifecycle';
 import React, { useState } from 'react';
 import { ChevronLeft, MapPin, Clock, Users, Plus, Search, Filter, Sparkles } from 'lucide-react';
 import { CategoryItem, MeetupPost } from '../types';
@@ -28,7 +29,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
   const categoryPosts = posts.filter((p) => p.category === category.name);
 
   const filteredPosts = categoryPosts.filter((post) => {
-    if (filterRecruitingOnly && post.status === 'closed') return false;
+    if (filterRecruitingOnly && post.status !== 'recruiting') return false;
     if (searchKeyword.trim()) {
       const q = searchKeyword.toLowerCase();
       const matchTitle = post.title.toLowerCase().includes(q);
@@ -167,9 +168,9 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                       <span className="text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2.5 py-0.5 rounded-full">
                         {post.category}
                       </span>
-                      {post.status === 'closed' ? (
+                      {post.status !== 'recruiting' ? (
                         <span className="text-[11px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                          마감
+                          {postStatusLabel(post)}
                         </span>
                       ) : (
                         <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
@@ -180,12 +181,12 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
 
                     <span
                       className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                        post.status === 'closed'
+                        post.status !== 'recruiting'
                           ? 'bg-gray-100 text-gray-400'
                           : 'bg-purple-50 text-[#6c2cf5]'
                       }`}
                     >
-                      {post.status === 'closed' ? '2/2명' : '1/2명'}
+                      {post.currentMembers}/2명
                     </span>
                   </div>
 
@@ -242,13 +243,13 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                         if (onSelectPost) onSelectPost(post);
                       }}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ${
-                        post.status === 'closed'
+                        post.status !== 'recruiting'
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'bg-[#6c2cf5] text-white hover:bg-[#5820d8] active:scale-95 shadow-purple-500/20'
                       }`}
-                      disabled={post.status === 'closed'}
+                      disabled={post.status !== 'recruiting'}
                     >
-                      {post.status === 'closed' ? '모집 마감' : '동행 신청하기'}
+                      {post.status !== 'recruiting' ? postStatusLabel(post) : '동행 신청하기'}
                     </button>
                   </div>
                 </div>

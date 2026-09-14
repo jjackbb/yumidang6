@@ -1,10 +1,9 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('fs'),
   assert = require('assert/strict');
-const out = require('path').resolve(
-  __dirname,
-  '../../docs/prototype-roadmap/evidence',
-);
+const out =
+  process.env.EVIDENCE_DIR ||
+  require('path').resolve(__dirname, '../../docs/prototype-roadmap/evidence');
 fs.mkdirSync(out, { recursive: true });
 const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
 (async () => {
@@ -229,6 +228,10 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
         0,
       );
       await p.getByRole('button', { name: '신청 취소', exact: true }).click();
+      await p.getByRole('radio', { name: '개인 사정이 생겼어요' }).check();
+      await p
+        .getByRole('button', { name: '신청 취소하기', exact: true })
+        .click();
       assert.equal(
         await p.getByRole('textbox', { name: '메시지', exact: true }).count(),
         0,

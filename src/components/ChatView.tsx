@@ -23,6 +23,8 @@ import {
   isValidMeetupRange,
 } from '../utils/meetupLifecycle';
 import { koreaDateKey } from '../utils/calendar';
+import { ConditionReview } from './ConditionReview';
+import { isConfirmedAppointment, isOpenRequest } from '../utils/postLifecycle';
 import { DEMO_USER_ID } from '../data/demoIdentity';
 
 interface ChatViewProps {
@@ -42,6 +44,9 @@ interface ChatViewProps {
   onAccept: () => void;
   onReject: () => void;
   onCancel: () => void;
+  onCancelAppointment: () => void;
+  onReconfirm: (revision: number, agree: boolean, simulate?: boolean) => void;
+  onSimulatePostChange: () => void;
   onSimulateAccept: () => void;
   onSend: (text: string, sample?: boolean) => void;
   onDraft: (text: string) => void;
@@ -66,6 +71,9 @@ export function ChatView({
   onAccept,
   onReject,
   onCancel,
+  onCancelAppointment,
+  onReconfirm,
+  onSimulatePostChange,
   onSimulateAccept,
   onSend,
   onDraft,
@@ -73,6 +81,7 @@ export function ChatView({
   onResolveProposal,
 }: ChatViewProps) {
   const endRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const [proposalOpen, setProposalOpen] = useState(false);
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
@@ -81,7 +90,11 @@ export function ChatView({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
   }, [room.messages.length]);
-  const pending = request?.status === 'pending' && status.canSend;
+  useEffect(() => {
+    if (request?.status === 'reconfirming' && messageListRef.current)
+      messageListRef.current.scrollTop = 0;
+  }, [request?.reconfirmation?.revision, request?.status]);
+  const pending = request && isOpenRequest(request) && status.canSend;
   const local = (iso?: string) =>
     iso && Number.isFinite(Date.parse(iso))
       ? `${koreaDateKey(new Date(iso))}T${formatClock(iso)}`
@@ -141,7 +154,7 @@ export function ChatView({
             </span>
           </span>
         </button>
-        {appointment && (
+        {appointment && isConfirmedAppointment(appointment) && (
           <button
             onClick={onOpenVoiceCall}
             aria-label="안심 통화 안내"
@@ -193,10 +206,13 @@ export function ChatView({
                   거절
                 </button>
                 <button
+                  disabled={request.status === 'reconfirming'}
                   onClick={onAccept}
-                  className="flex-1 text-xs py-2 rounded-lg bg-[#6c2cf5] text-white font-bold"
+                  className="flex-1 text-xs py-2 rounded-lg bg-[#6c2cf5] text-white font-bold disabled:bg-gray-200 disabled:text-gray-500"
                 >
-                  동행 수락하기
+                  {request.status === 'reconfirming'
+                    ? '조건 동의 대기'
+                    : '동행 수락하기'}
                 </button>
               </>
             ) : (
@@ -210,7 +226,35 @@ export function ChatView({
           </div>
         )}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+      {appointment && isConfirmedAppointment(appointment) && (
+        <button
+          onClick={onCancelAppointment}
+          className="text-[11px] text-gray-500 underline px-4 py-2 bg-white text-right"
+        >
+          확정 동행 취소
+        </button>
+      )}
+      <div
+        ref={messageListRef}
+        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
+      >
+        {request && (
+          <ConditionReview
+            request={request}
+            userId={user.id}
+            onRespond={(revision, agree) => onReconfirm(revision, agree)}
+            onSimulate={
+              user.id === DEMO_USER_ID && request.hostId === user.id
+                ? (revision, agree) => onReconfirm(revision, agree, true)
+                : undefined
+            }
+          />
+        )}
+        {appointment?.cancellation && (
+          <p className="bg-gray-100 rounded-xl p-3 text-xs text-gray-600">
+            취소 사유: {appointment.cancellation.reason}
+          </p>
+        )}
         {room.messages.map((message) =>
           message.senderId === 'system' ? (
             <p
@@ -241,11 +285,13 @@ export function ChatView({
                     <p>{message.proposal.newDateTime}</p>
                     <p>{message.proposal.newLocation}</p>
                     <p className="text-[10px] text-[#6c2cf5]">
-                      {message.proposal.status === 'accepted'
-                        ? '변경 수락됨'
-                        : message.proposal.status === 'rejected'
-                          ? '변경 거절됨 · 기존 일정 유지'
-                          : '상대 동의 전까지 기존 일정 유지'}
+                      {message.proposal.status === 'cancelled'
+                        ? '동행 취소로 변경 제안 종료'
+                        : message.proposal.status === 'accepted'
+                          ? '변경 수락됨'
+                          : message.proposal.status === 'rejected'
+                            ? '변경 거절됨 · 기존 일정 유지'
+                            : '상대 동의 전까지 기존 일정 유지'}
                     </p>
                     {message.proposal.status === 'pending' &&
                       status.canSend &&
@@ -301,6 +347,14 @@ export function ChatView({
               실제 상대방에게 전송되지 않습니다. 새로고침하면 초기화돼요.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
+              {pending && request.requesterId === user.id && (
+                <button
+                  onClick={onSimulatePostChange}
+                  className="rounded-lg bg-purple-50 text-[#6c2cf5] p-2"
+                >
+                  작성자 조건 변경 시연
+                </button>
+              )}
               <button
                 onClick={() =>
                   onSend(
@@ -314,6 +368,7 @@ export function ChatView({
               </button>
               {pending && request.requesterId === user.id && (
                 <button
+                  disabled={request.status === 'reconfirming'}
                   onClick={onSimulateAccept}
                   className="rounded-lg bg-purple-50 text-[#6c2cf5] p-2"
                 >
@@ -337,7 +392,7 @@ export function ChatView({
           }}
           className="bg-white p-3 flex gap-2 items-end border-t border-gray-100 shrink-0"
         >
-          {appointment && appointment.status !== '동행 완료' && (
+          {appointment && isConfirmedAppointment(appointment) && (
             <button
               type="button"
               title="일정/장소 제안하기"
