@@ -103,6 +103,7 @@ export interface NotificationItem {
   time: string;
   read: boolean;
   type: 'matching' | 'event' | 'chat';
+  action?: 'match_requests';
 }
 
 export interface CurrentUser {

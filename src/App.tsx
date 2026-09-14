@@ -40,7 +40,7 @@ import {
   mockMeetupPosts,
   mockNotifications,
 } from './data/mockData';
-import { CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment } from './types';
+import { CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem } from './types';
 
 export default function App() {
   // Navigation state
@@ -306,7 +306,18 @@ export default function App() {
       currentMembers: p.status === 'closed' ? 2 : 1,
     }))
   );
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => [
+    ...joinRequests.map((request) => ({
+      id: `notif-${request.id}`,
+      title: `${request.requesterName}님이 동행을 신청했어요`,
+      description: `"${request.postTitle}" 공고의 신청 내용을 확인해 보세요.`,
+      time: request.createdAt,
+      read: false,
+      type: 'matching',
+      action: 'match_requests',
+    })),
+    ...mockNotifications,
+  ]);
 
   // 1대1 동행 서비스 원칙(최대 2명) 강제 정규화
   const activeMeetupPosts = meetupPosts.map((p) => ({
@@ -790,33 +801,6 @@ export default function App() {
               onViewAllEvents={() => setSelectedEvent(mockEventBanners[0])}
             />
 
-            {/* Phase 3: Pending Host Requests quick banner if any */}
-            {pendingRequestsCount > 0 && (
-              <div className="px-5 mb-3">
-                <button
-                  onClick={() => setIsMatchRequestsOpen(true)}
-                  className="w-full p-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl flex items-center justify-between shadow-md shadow-purple-500/20 active:scale-98 transition-all text-left"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">
-                      📬
-                    </span>
-                    <div>
-                      <p className="text-xs font-bold leading-tight">
-                        도착한 1:1 동행 신청이 <span className="underline">{pendingRequestsCount}건</span> 있습니다!
-                      </p>
-                      <p className="text-[10.5px] text-purple-100 mt-0.5">
-                        신청자의 당도와 메시지를 확인하고 매칭을 확정하세요.
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-bold bg-white text-[#6c2cf5] px-2.5 py-1 rounded-full shrink-0">
-                    확인
-                  </span>
-                </button>
-              </div>
-            )}
-
             {/* 2. 매칭 확정 약속 카드 */}
             <AppointmentCard
               appointment={appointment}
@@ -990,6 +974,13 @@ export default function App() {
           onClose={() => setIsNotificationsOpen(false)}
           notifications={notifications}
           onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+          onOpenMatchRequests={(notificationId) => {
+            setNotifications((prev) =>
+              prev.map((item) => item.id === notificationId ? { ...item, read: true } : item)
+            );
+            setIsNotificationsOpen(false);
+            setIsMatchRequestsOpen(true);
+          }}
         />
 
         {/* Modal: 회원가입 / 휴대폰 본인확인 (Phase 1) */}
@@ -1031,4 +1022,3 @@ export default function App() {
     </div>
   );
 }
-

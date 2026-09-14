@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Bell, Calendar, Sparkles, MessageCircle, Check } from 'lucide-react';
+import { X, Bell, Calendar, Sparkles, MessageCircle, UserCheck, ChevronRight } from 'lucide-react';
 import { NotificationItem } from '../types';
 
 interface NotificationModalProps {
@@ -7,6 +7,7 @@ interface NotificationModalProps {
   onClose: () => void;
   notifications: NotificationItem[];
   onMarkAllAsRead: () => void;
+  onOpenMatchRequests: (notificationId: string) => void;
 }
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({
@@ -14,6 +15,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   notifications,
   onMarkAllAsRead,
+  onOpenMatchRequests,
 }) => {
   if (!isOpen) return null;
 
@@ -66,7 +68,11 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                       : 'bg-[#e8f5ff] text-[#0284c7]'
                   }`}
                 >
-                  {item.type === 'matching' && <Calendar className="w-4 h-4" />}
+                  {item.type === 'matching' && (
+                    item.action === 'match_requests'
+                      ? <UserCheck className="w-4 h-4" />
+                      : <Calendar className="w-4 h-4" />
+                  )}
                   {item.type === 'event' && <Sparkles className="w-4 h-4" />}
                   {item.type === 'chat' && <MessageCircle className="w-4 h-4" />}
                 </div>
@@ -79,6 +85,16 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                     {item.description}
                   </p>
+                  {item.action === 'match_requests' && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenMatchRequests(item.id)}
+                      className="mt-2 inline-flex items-center gap-1 py-1 text-xs font-bold text-[#6c2cf5] hover:underline"
+                    >
+                      신청 확인하기
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
