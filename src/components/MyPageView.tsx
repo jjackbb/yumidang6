@@ -1,10 +1,17 @@
+import { CompanionRequests, RequestTab } from './CompanionRequests';
 import React, { useState, useRef } from 'react';
 import { User, Heart, Calendar, ShieldCheck, ChevronRight, Settings, Star, Award, LogOut, Sparkles, MessageSquare, Clock, Lock, CreditCard, Camera } from 'lucide-react';
-import { Appointment, CurrentUser, ReviewItem, EscrowPayment } from '../types';
+import { Appointment, CurrentUser, ReviewItem, EscrowPayment, JoinRequest } from '../types';
 
 interface MyPageViewProps {
-  currentAppointment: Appointment;
-  onOpenDashboard: () => void;
+  appointments: Appointment[];
+  onOpenDashboard: (appointment: Appointment) => void;
+  requests: JoinRequest[];
+  requestTab: RequestTab;
+  onChangeRequestTab: (tab: RequestTab) => void;
+  onAcceptRequest: (id: string) => void;
+  onRejectRequest: (id: string) => void;
+  onOpenRequestPost: (id: string) => void;
   currentUser: CurrentUser | null;
   onOpenAuth: () => void;
   onOpenKyc: () => void;
@@ -15,7 +22,7 @@ interface MyPageViewProps {
 }
 
 export const MyPageView: React.FC<MyPageViewProps> = ({
-  currentAppointment,
+  appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost,
   onOpenDashboard,
   currentUser,
   onOpenAuth,
@@ -69,6 +76,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
 
   return (
     <div className="px-5 pt-3 pb-24 text-left space-y-4">
+      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} /></div>
       {/* Profile Card */}
       <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">
@@ -225,25 +233,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
       {/* View 1: Default Info & Menus */}
       {activeSubTab === 'info' && (
         <div className="space-y-4">
-          {/* Upcoming Active Appointment */}
-          <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#6c2cf5] bg-[#f0edff] px-2.5 py-0.5 rounded-full">
-                진행 예정 동행 (1건)
-              </span>
-              <button
-                onClick={onOpenDashboard}
-                className="text-xs font-bold text-[#6c2cf5] hover:underline flex items-center"
-              >
-                상세보기 &gt;
-              </button>
-            </div>
-            <h4 className="font-bold text-[15px] text-gray-900 leading-snug">
-              {currentAppointment.title}
-            </h4>
-            <p className="text-xs text-gray-500 mt-1">
-              {currentAppointment.dateTime} • {currentAppointment.location}
-            </p>
+          <div className="bg-white rounded-[24px] p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-[#6c2cf5] mb-3">확정 동행 ({appointments.filter(item => item.status !== '동행 완료').length}건)</h3>
+            <div className="divide-y divide-gray-100">{appointments.filter(item => item.status !== '동행 완료').map(item => <button key={item.id} onClick={() => onOpenDashboard(item)} className="w-full py-3 text-left flex items-center gap-3 justify-between"><div><h4 className="text-sm font-bold">{item.title}</h4><p className="text-xs text-gray-500 mt-1">{item.dateTime}</p></div><ChevronRight className="w-4 h-4 shrink-0 text-gray-400" /></button>)}</div>
           </div>
 
           {/* Menu List */}

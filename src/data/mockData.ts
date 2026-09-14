@@ -1,42 +1,16 @@
-import { Appointment, CategoryItem, EventBannerItem, MeetupPost, NotificationItem } from '../types';
-
-export const mockEventBanners: EventBannerItem[] = [
-  {
-    id: 'fireworks-2026',
-    badge: '시즌 이벤트',
-    subBadge: 'RKLES 이번 주말 특별 추천',
-    title: '2026 서울세계불꽃축제 함께 갈 이웃 찾기 🎆',
-    subtitle: '이번 주말 특별한 밤하늘, 취향 맞는 동행과 함께해요',
-    imageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=1200&q=85',
-    tag: '여의도 한강공원',
-  },
-  {
-    id: 'jazz-fest-2026',
-    badge: '인기 이벤트',
-    subBadge: 'LIVE MUSIC WEEKEND',
-    title: '가을밤 올림픽공원 재즈 페스티벌 동행 🎷',
-    subtitle: '돗자리 펴고 잔디밭에서 감미로운 선율을 함께 즐겨요',
-    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=85',
-    tag: '올림픽공원 88잔디마당',
-  },
-  {
-    id: 'art-biennale-2026',
-    badge: '전시 특별전',
-    subBadge: 'CURATED FOR YOU',
-    title: '국립현대미술관 동시대 현대미술 도슨트 투어 🎨',
-    subtitle: '작품 감상 후 인근 삼청동 카페에서 담소 나누실 분',
-    imageUrl: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1200&q=85',
-    tag: 'MMCA 서울관',
-  }
-];
+import { Appointment, CategoryItem, MeetupPost, NotificationItem } from '../types';
+import { DEMO_USER_ID } from './demoIdentity';
+import { demoSchedule, formatSchedule } from '../utils/calendar';
 
 export const mockAppointment: Appointment = {
   id: 'appt-gangnam-brunch',
+  postId: 'post-2',
+  scheduledAt: demoSchedule(2),
   status: '매칭 확정',
-  dDay: 'D-1 토 14:00',
-  appointmentBadge: '약속 D-1',
+  dDay: 'D-2',
+  appointmentBadge: '확정된 약속',
   title: '조*미 님과의 강남맛집 식사 동행',
-  dateTime: '2026.9.12(토) 오후 2:00',
+  dateTime: formatSchedule(demoSchedule(2)),
   location: '서울 강남구 대치동 르브런치',
   addressDetail: '서울특별시 강남구 삼성로 312 2층 르브런치 대치본점',
   partnerName: '조*미',
@@ -48,7 +22,22 @@ export const mockAppointment: Appointment = {
   totalGuests: 2,
 };
 
+export const mockAppointments: Appointment[] = [
+  mockAppointment,
+  { ...mockAppointment, id: 'appt-art', postId: 'post-3', title: '서*진 님과의 전시 산책', partnerName: '서*진', location: '종로구 삼청동', scheduledAt: demoSchedule(5, 11), dateTime: formatSchedule(demoSchedule(5, 11)), dDay: 'D-5' },
+  { ...mockAppointment, id: 'appt-walk', postId: 'post-4', title: '강*훈 님과의 저녁 산책', partnerName: '강*훈', location: '선정릉 산책로', scheduledAt: demoSchedule(7, 19), dateTime: formatSchedule(demoSchedule(7, 19)), dDay: 'D-7' },
+  { ...mockAppointment, id: 'appt-later', title: '윤*솔 님과의 공예 클래스', partnerName: '윤*솔', location: '성수동 아틀리에', scheduledAt: demoSchedule(10), dateTime: formatSchedule(demoSchedule(10)), dDay: 'D-10' },
+];
+
 export const mockCategories: CategoryItem[] = [
+  {
+    id: 'flash',
+    name: '지금',
+    iconBg: 'bg-[#fffbe6]',
+    iconColor: 'text-[#d97706]',
+    iconType: 'flash',
+  },
+
   {
     id: 'exhibition',
     name: '전시',
@@ -120,22 +109,25 @@ export const mockCategories: CategoryItem[] = [
     iconType: 'shopping',
   },
   {
-    id: 'flash',
-    name: '번개',
-    iconBg: 'bg-[#fffbe6]',
-    iconColor: 'text-[#d97706]',
-    iconType: 'flash',
-  },
-  {
-    id: 'all',
-    name: '전체보기',
+    id: 'other',
+    name: '기타',
     iconBg: 'bg-[#f1f3f5]',
     iconColor: 'text-[#4b5563]',
-    iconType: 'all',
+    iconType: 'other',
   },
 ];
 
 export const mockMeetupPosts: MeetupPost[] = [
+  {
+    id: 'post-demo-host', category: '식사', title: '성수동 디저트 오마카세 같이 가실 분', author: '조*미', authorId: DEMO_USER_ID,
+    avatar: mockAppointment.partnerAvatar, startsAt: demoSchedule(3, 15), time: formatSchedule(demoSchedule(3, 15)), location: '성수동 디저트 카페',
+    publicLocation: '성수역', secretLocation: '카페 입구', currentMembers: 1, maxMembers: 2, tags: ['디저트', '카페'], status: 'recruiting',
+  },
+  {
+    id: 'post-now', category: '지금', title: '지금 서울숲에서 커피 한 잔 하실 분?', author: '이*진', authorId: 'user-now',
+    avatar: mockAppointment.partnerAvatar, startsAt: demoSchedule(0, 23), time: formatSchedule(demoSchedule(0, 23)), location: '서울숲 카페거리',
+    currentMembers: 1, maxMembers: 2, tags: ['지금이당', '커피'], status: 'recruiting',
+  },
   {
     id: 'post-1',
     category: '축제',
@@ -224,7 +216,7 @@ export const mockMeetupPosts: MeetupPost[] = [
   },
   {
     id: 'post-6',
-    category: '전체보기',
+    category: '기타',
     title: '[PRO] 성수동 감성 골목 인생샷 스냅 촬영 1:1 동행 📸',
     author: '박*준 (포토그래퍼)',
     authorId: 'user-snap-pro',
@@ -285,8 +277,8 @@ export const mockMeetupPosts: MeetupPost[] = [
 export const mockNotifications: NotificationItem[] = [
   {
     id: 'notif-1',
-    title: '매칭된 동행 약속이 내일로 다가왔어요!',
-    description: '[조*미] 님과의 강남맛집 식사 동행 (토요일 14:00)',
+    title: '다가오는 확정 동행을 확인해 보세요',
+    description: '[조*미] 님과의 강남맛집 식사 동행',
     time: '10분 전',
     read: false,
     type: 'matching',
@@ -294,7 +286,7 @@ export const mockNotifications: NotificationItem[] = [
   {
     id: 'notif-2',
     title: '주목할 이벤트가 업데이트되었습니다',
-    description: '2026 서울세계불꽃축제 함께 갈 이웃 찾기 특별관 오픈',
+    description: '이번 주차에 시작하는 행사들을 둘러보세요',
     time: '1시간 전',
     read: false,
     type: 'event',

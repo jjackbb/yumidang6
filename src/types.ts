@@ -6,6 +6,12 @@ export interface EventBannerItem {
   subtitle: string;
   imageUrl: string;
   tag: string;
+  startsOn: string;
+  endsOn: string;
+  kind: '팝업' | '전시' | '축제' | '공연';
+  description: string;
+  sourceType: 'sample' | 'collected';
+  sourceUrl?: string;
 }
 
 export type CompanionType = 'free' | 'pro';
@@ -36,6 +42,8 @@ export interface EscrowPayment {
 
 export interface Appointment {
   id: string;
+  postId?: string;
+  scheduledAt?: string;
   status: string;
   dDay: string;
   appointmentBadge: string;
@@ -72,11 +80,13 @@ export interface CategoryItem {
     | 'performance'
     | 'shopping'
     | 'flash'
-    | 'all';
+    | 'other';
 }
 
 export interface MeetupPost {
   id: string;
+  startsAt?: string;
+  eventId?: string;
   category: string;
   title: string;
   author: string;
@@ -130,6 +140,7 @@ export interface CurrentUser {
 
 export interface JoinRequest {
   id: string;
+  hostId: string;
   postId: string;
   postTitle: string;
   requesterId: string;

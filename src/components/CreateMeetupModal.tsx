@@ -1,3 +1,4 @@
+import { appointmentStart, demoSchedule, koreaDateKey } from '../utils/calendar';
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, MapPin, Lock, Info, Sparkles, ShieldCheck, AlertCircle } from 'lucide-react';
 import { MeetupPost, CurrentUser } from '../types';
@@ -21,7 +22,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('식사');
-  const [date, setDate] = useState('2026-09-13');
+  const [date, setDate] = useState(koreaDateKey(new Date(demoSchedule(1))));
   const [time, setTime] = useState('18:00');
   const [location, setLocation] = useState('서울 강남구 대치동');
   const [publicLocation, setPublicLocation] = useState('대치역 3번 출구 앞');
@@ -54,9 +55,11 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
     if (editPost) {
       setTitle(editPost.title);
       setCategory(editPost.category);
-      const parts = editPost.time.split(' ');
-      if (parts[0]) setDate(parts[0]);
-      if (parts[1]) setTime(parts[1]);
+      const start = appointmentStart({ scheduledAt: editPost.startsAt, dateTime: editPost.time });
+      if (Number.isFinite(start.getTime())) {
+        setDate(koreaDateKey(start));
+        setTime(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' }).format(start));
+      }
       setLocation(editPost.location);
       setPublicLocation(editPost.publicLocation || '');
       setSecretLocation(editPost.secretLocation || '');
@@ -73,7 +76,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
     } else {
       setTitle('');
       setCategory('식사');
-      setDate('2026-09-13');
+      setDate(koreaDateKey(new Date(demoSchedule(1))));
       setTime('18:00');
       setLocation('서울 강남구 대치동');
       setPublicLocation('대치역 3번 출구 앞');
@@ -91,7 +94,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
 
   if (!isOpen) return null;
 
-  const categories = ['전시', '축제', '식사', '운동', '여행', '클래스', '산책', '스터디', '공연', '쇼핑', '번개'];
+  const categories = ['전시', '축제', '식사', '운동', '여행', '클래스', '산책', '스터디', '공연', '쇼핑', '지금', '기타'];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +125,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
         title: title.trim(),
         category,
         time: `${date} ${time}`,
+        startsAt: new Date(`${date}T${time}:00+09:00`).toISOString(),
         location,
         publicLocation: publicLocation.trim(),
         secretLocation: secretLocation.trim(),
@@ -142,6 +146,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
           ? currentUser.avatar
           : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
         time: `${date} ${time}`,
+        startsAt: new Date(`${date}T${time}:00+09:00`).toISOString(),
         location,
         publicLocation: publicLocation.trim(),
         secretLocation: secretLocation.trim(),

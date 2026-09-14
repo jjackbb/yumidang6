@@ -41,7 +41,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   if (!isOpen || !post) return null;
 
   const isHost = Boolean(
-    currentUser && (currentUser.id === post.authorId || currentUser.maskedName === post.author)
+    currentUser && currentUser.id === post.authorId
   );
 
   const isClosed = post.status === 'closed' || post.currentMembers >= 2;

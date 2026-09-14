@@ -23,6 +23,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         <button
           id="btn-fab-create"
           onClick={onOpenCreate}
+          style={{ right: 'max(24px, calc((100vw - 440px) / 2 + 24px))' }}
           className="fixed bottom-[74px] right-6 z-30 w-[54px] h-[54px] rounded-full bg-[#6c2cf5] text-white flex items-center justify-center shadow-[0_4px_16px_rgba(108,44,245,0.45)] hover:bg-[#5820d8] active:scale-95 transition-transform"
           aria-label="동행 모집하기"
         >
@@ -31,7 +32,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md px-3 py-2 flex items-center justify-around max-w-[480px] mx-auto shadow-[0_-4px_24px_rgba(0,0,0,0.04)]">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md px-3 py-2 flex items-center justify-around max-w-[440px] mx-auto shadow-[0_-4px_24px_rgba(0,0,0,0.04)]">
         {/* Tab 1: 홈 */}
         <button
           id="nav-tab-home"

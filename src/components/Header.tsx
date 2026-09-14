@@ -1,23 +1,19 @@
 import React from 'react';
-import { Bell, ShieldCheck, UserCheck } from 'lucide-react';
+import { Bell, ShieldCheck } from 'lucide-react';
 
 import logoImg from '../assets/logo.jpg';
 import { CurrentUser } from '../types';
 
 interface HeaderProps {
   unreadCount?: number;
-  pendingRequestCount?: number;
   onOpenNotifications: () => void;
-  onOpenMatchRequests?: () => void;
   currentUser: CurrentUser | null;
   onOpenAuth: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   unreadCount = 2,
-  pendingRequestCount = 0,
   onOpenNotifications,
-  onOpenMatchRequests,
   currentUser,
   onOpenAuth,
 }) => {
@@ -48,24 +44,6 @@ export const Header: React.FC<HeaderProps> = ({
             className="px-3 py-1 bg-[#6c2cf5] text-white text-xs font-bold rounded-lg hover:bg-[#5820d8] transition-colors shadow-xs"
           >
             로그인
-          </button>
-        )}
-
-        {/* 1:1 Match Requests Inbox Button */}
-        {onOpenMatchRequests && (
-          <button
-            id="btn-match-requests"
-            onClick={onOpenMatchRequests}
-            className="relative p-2 text-gray-700 hover:text-[#6c2cf5] hover:bg-gray-50 rounded-full transition-colors active:scale-95"
-            aria-label="받은 동행 신청"
-            title="받은 동행 신청함"
-          >
-            <UserCheck className="w-[22px] h-[22px] stroke-[2]" />
-            {pendingRequestCount > 0 && (
-              <span className="absolute top-1 right-1 px-1 min-w-[16px] h-4 bg-[#6c2cf5] text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-white">
-                {pendingRequestCount}
-              </span>
-            )}
           </button>
         )}
 

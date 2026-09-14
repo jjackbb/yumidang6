@@ -10,7 +10,6 @@ import {
   BookOpen,
   Ticket,
   ShoppingBag,
-  Zap,
   LayoutGrid,
 } from 'lucide-react';
 import { CategoryItem } from '../types';
@@ -65,11 +64,11 @@ export const CategoryIcon: React.FC<Props> = ({ type, className = 'w-[22px] h-[2
       return <ShoppingBag className={`${className} text-[#6c2cf5]`} strokeWidth={defaultStrokeWidth} />;
 
     case 'flash':
-      // 번개 - 번개 아이콘
-      return <Zap className={`${className} text-[#d97706] fill-[#d97706]`} strokeWidth={defaultStrokeWidth} />;
+      // 지금 - 당!
+      return <span className="text-[20px] leading-none font-black tracking-tighter text-[#d97706]">당!</span>;
 
-    case 'all':
-      // 전체 - 그리드
+    case 'other':
+      // 기타 - 그리드
       return <LayoutGrid className={`${className} text-[#4b5563]`} strokeWidth={defaultStrokeWidth} />;
 
     default:

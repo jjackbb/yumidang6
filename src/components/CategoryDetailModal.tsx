@@ -25,10 +25,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
 
   if (!isOpen || !category) return null;
 
-  const categoryPosts =
-    category.iconType === 'all'
-      ? posts
-      : posts.filter((p) => p.category === category.name);
+  const categoryPosts = posts.filter((p) => p.category === category.name);
 
   const filteredPosts = categoryPosts.filter((post) => {
     if (filterRecruitingOnly && post.status === 'closed') return false;
@@ -61,7 +58,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                 <CategoryIcon type={category.iconType} className="w-4 h-4" />
               </div>
               <h2 className="text-[17px] font-extrabold text-gray-900 tracking-tight">
-                {category.name} 동행
+                {category.iconType === 'flash' ? '지금이당!' : `${category.name} 동행`}
               </h2>
             </div>
           </div>
@@ -141,7 +138,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-bold text-gray-800">
-                    등록된 {category.name} 동행이 없습니다.
+                    등록된 {category.iconType === 'flash' ? '지금이당!' : `${category.name} 동행`}이 없습니다.
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     직접 첫 번째 1:1 동행을 제안해보세요!

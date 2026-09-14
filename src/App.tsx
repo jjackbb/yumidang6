@@ -10,7 +10,12 @@ import { trackBackEvent } from './utils/trackBackEvent';
 import { trackFunnelEvent } from './utils/trackFunnelEvent';
 import { Header } from './components/Header';
 import { EventBanner } from './components/EventBanner';
-import { AppointmentCard } from './components/AppointmentCard';
+import { AppointmentReminders } from './components/AppointmentReminders';
+import { EventsView } from './components/EventsView';
+import { RequestTab } from './components/CompanionRequests';
+import { sampleEventsForMonth } from './data/events';
+import { DEMO_USER_ID } from './data/demoIdentity';
+import { appointmentStart, koreaDateParts } from './utils/calendar';
 import { CategoryGrid } from './components/CategoryGrid';
 import { BottomNav, NavTab } from './components/BottomNav';
 import { DashboardModal } from './components/DashboardModal';
@@ -23,7 +28,6 @@ import { AuthModal } from './components/AuthModal';
 import { KycAuthModal } from './components/KycAuthModal';
 import { PostDetailModal } from './components/PostDetailModal';
 import { JoinRequestModal } from './components/JoinRequestModal';
-import { MatchRequestsModal } from './components/MatchRequestsModal';
 import { SafetyRulesModal } from './components/SafetyRulesModal';
 import { VoiceCallModal } from './components/VoiceCallModal';
 import { ReportModal } from './components/ReportModal';
@@ -34,13 +38,12 @@ import { ChatView } from './components/ChatView';
 import { MyPageView } from './components/MyPageView';
 
 import {
-  mockAppointment,
+  mockAppointments,
   mockCategories,
-  mockEventBanners,
   mockMeetupPosts,
   mockNotifications,
 } from './data/mockData';
-import { CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem } from './types';
+import { Appointment, CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem } from './types';
 
 export default function App() {
   // Navigation state
@@ -125,7 +128,15 @@ export default function App() {
   // Phase 3: 1:1 Matching Requests & Modals
   const [isJoinRequestModalOpen, setIsJoinRequestModalOpen] = useState(false);
   const [selectedPostForJoin, setSelectedPostForJoin] = useState<MeetupPost | null>(null);
-  const [isMatchRequestsOpen, setIsMatchRequestsOpen] = useState(false);
+  const [requestTab, setRequestTab] = useState<RequestTab>('sent');
+  const [isEventsOpen, setIsEventsOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const today = koreaDateParts(now);
+  const eventBanners = sampleEventsForMonth(today.year, today.month);
 
   // Phase 4: Safety, Voice Call & Emergency Report states
   const [isSafetyRulesOpen, setIsSafetyRulesOpen] = useState(false);
@@ -213,15 +224,6 @@ export default function App() {
     }
   }, [isJoinRequestModalOpen]);
 
-  useEffect(() => {
-    if (isMatchRequestsOpen) {
-      modalOpenTimes.current['MATCH_REQUESTS'] = Date.now();
-    } else if (modalOpenTimes.current['MATCH_REQUESTS']) {
-      const durationMs = Date.now() - modalOpenTimes.current['MATCH_REQUESTS'];
-      delete modalOpenTimes.current['MATCH_REQUESTS'];
-      trackBackEvent({ pageKey: 'MATCH_REQUESTS', actionType: 'close', durationMs });
-    }
-  }, [isMatchRequestsOpen]);
   const [reviews, setReviews] = useState<ReviewItem[]>([
     {
       id: 'rev-sample-1',
@@ -273,7 +275,8 @@ export default function App() {
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([
     {
       id: 'req-init-1',
-      postId: 'm4',
+      postId: 'post-demo-host',
+      hostId: DEMO_USER_ID,
       postTitle: '성수동 디저트 오마카세 같이 가실 분',
       requesterId: 'user-req-1',
       requesterName: '김*수',
@@ -285,7 +288,8 @@ export default function App() {
     },
     {
       id: 'req-init-2',
-      postId: 'm4',
+      postId: 'post-demo-host',
+      hostId: DEMO_USER_ID,
       postTitle: '성수동 디저트 오마카세 같이 가실 분',
       requesterId: 'user-req-2',
       requesterName: '이*은',
@@ -295,10 +299,29 @@ export default function App() {
       status: 'pending',
       createdAt: '30분 전',
     },
+    {
+      id: 'req-sent-demo', postId: 'post-5', hostId: 'user-sol', postTitle: '성수동 원데이 가죽공예 키링 만들기 1:1 동행 모집',
+      requesterId: DEMO_USER_ID, requesterName: '조*미', requesterAvatar: mockAppointments[0].partnerAvatar,
+      requesterSugar: 50, message: '처음 해보는 가죽공예라 함께 배우고 싶어요!', status: 'pending', createdAt: '1시간 전',
+    },
   ]);
 
   // App data states
-  const [appointment, setAppointment] = useState(mockAppointment);
+  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
+  const [activeAppointmentId, setActiveAppointmentId] = useState(mockAppointments[0].id);
+  const appointment = appointments.find(item => item.id === activeAppointmentId) || appointments[0];
+  const setAppointment = (next: Appointment | ((previous: Appointment) => Appointment)) => {
+    if (typeof next === 'function') {
+      setAppointments(previous => previous.map(item => item.id === activeAppointmentId ? next(item) : item));
+    } else {
+      setAppointments(previous => [next, ...previous.filter(item => item.id !== next.id)]);
+      setActiveAppointmentId(next.id);
+    }
+  };
+  const openAppointment = (item: Appointment) => {
+    setActiveAppointmentId(item.id);
+    setIsDashboardOpen(true);
+  };
   const [meetupPosts, setMeetupPosts] = useState<MeetupPost[]>(() =>
     mockMeetupPosts.map((p) => ({
       ...p,
@@ -307,7 +330,7 @@ export default function App() {
     }))
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => [
-    ...joinRequests.map((request) => ({
+    ...joinRequests.filter(request => request.hostId === DEMO_USER_ID).map((request): NotificationItem => ({
       id: `notif-${request.id}`,
       title: `${request.requesterName}님이 동행을 신청했어요`,
       description: `"${request.postTitle}" 공고의 신청 내용을 확인해 보세요.`,
@@ -327,7 +350,6 @@ export default function App() {
   }));
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
-  const pendingRequestsCount = joinRequests.filter((r) => r.status === 'pending').length;
 
   const handleMarkAllNotificationsAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -454,7 +476,11 @@ export default function App() {
   // Phase 3: Submit Join Request
   const handleSendJoinRequest = (postId: string, message: string) => {
     const post = activeMeetupPosts.find((p) => p.id === postId) || selectedPostForJoin;
-    if (!post || !currentUser) return;
+    if (!post || !currentUser || post.authorId === currentUser.id || post.status !== 'recruiting') return;
+    if (joinRequests.some(request => request.postId === post.id && request.requesterId === currentUser.id && request.status !== 'rejected')) {
+      alert('이미 신청한 동행이에요. Me에서 신청 상태를 확인해 주세요.');
+      return;
+    }
 
     trackFunnelEvent({
       step: 'JOIN_REQUEST_SUBMIT',
@@ -465,6 +491,7 @@ export default function App() {
 
     const newReq: JoinRequest = {
       id: 'req-' + Date.now(),
+      hostId: post.authorId || '',
       postId: post.id,
       postTitle: post.title,
       requesterId: currentUser.id,
@@ -496,7 +523,7 @@ export default function App() {
   // Phase 3: Accept Join Request (Single Lock Mechanism)
   const handleAcceptRequest = (requestId: string) => {
     const targetReq = joinRequests.find((r) => r.id === requestId);
-    if (!targetReq) return;
+    if (!targetReq || targetReq.hostId !== currentUser?.id || targetReq.status !== 'pending') return;
 
     trackFunnelEvent({
       step: 'MATCH_ACCEPT',
@@ -526,20 +553,14 @@ export default function App() {
       )
     );
 
-    // 3. Update confirmed appointment
+    // Add the newly accepted appointment without replacing other confirmed plans.
     setAppointment({
-      id: 'apt-' + Date.now(),
-      title: targetReq.postTitle,
-      category: targetPost?.category || '디저트',
-      dateTime: targetPost?.time || '2026.9.15(화) 15:00',
-      location: targetPost?.location || '성수동 디저트 카페',
-      currentMembers: 2,
-      maxMembers: 2,
-      status: '매칭 확정',
-      partnerName: targetReq.requesterName,
-      partnerAvatar: targetReq.requesterAvatar,
-      partnerRole: '참여자',
-      dDay: 'D-2',
+      id: 'apt-' + Date.now(), postId: targetReq.postId, scheduledAt: targetPost?.startsAt,
+      title: targetReq.postTitle, dateTime: targetPost?.time || '', location: targetPost?.location || '',
+      status: '매칭 확정', partnerName: targetReq.requesterName, partnerAvatar: targetReq.requesterAvatar,
+      partnerRating: 0, partnerBio: targetReq.message, menuRecommendation: targetPost?.category || '',
+      addressDetail: targetPost?.secretLocation || targetPost?.location || '', confirmedGuests: 2, totalGuests: 2,
+      dDay: '', appointmentBadge: '1:1 매칭 확정',
     });
 
     // 4. Send system notification
@@ -555,12 +576,12 @@ export default function App() {
       ...prev,
     ]);
 
-    setIsMatchRequestsOpen(false);
     setActiveTab('chat');
   };
 
   // Phase 3: Reject Join Request
   const handleRejectRequest = (requestId: string) => {
+    if (!joinRequests.some(request => request.id === requestId && request.hostId === currentUser?.id && request.status === 'pending')) return;
     setJoinRequests((prev) =>
       prev.map((r) => (r.id === requestId ? { ...r, status: 'rejected' } : r))
     );
@@ -571,6 +592,7 @@ export default function App() {
     setAppointment((prev) => ({
       ...prev,
       dateTime: newSchedule.dateTime,
+      scheduledAt: Number.isFinite(appointmentStart({ dateTime: newSchedule.dateTime }).getTime()) ? appointmentStart({ dateTime: newSchedule.dateTime }).toISOString() : undefined,
       location: newSchedule.location,
     }));
     setNotifications((prev) => [
@@ -745,6 +767,8 @@ export default function App() {
     setAppointment({
       id: 'apt-' + Date.now(),
       status: '매칭완료',
+      postId: post.id,
+      scheduledAt: post.startsAt,
       dDay: 'D-2',
       appointmentBadge: 'PRO 1:1 확정',
       title: post.title,
@@ -784,28 +808,24 @@ export default function App() {
         {/* Top Header */}
         <Header
           unreadCount={unreadNotifCount}
-          pendingRequestCount={pendingRequestsCount}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
-          onOpenMatchRequests={() => setIsMatchRequestsOpen(true)}
           currentUser={currentUser}
           onOpenAuth={() => setIsAuthModalOpen(true)}
         />
 
         {/* Tab 1: Home View */}
         {activeTab === 'home' && (
-          <div className="flex-1 overflow-y-auto pb-6">
+          <div className="flex-1 overflow-y-auto pb-24">
             {/* 1. 9월 2주차 주목할 이벤트 */}
             <EventBanner
-              events={mockEventBanners}
+              events={eventBanners}
+              now={now}
               onSelectEvent={(event) => setSelectedEvent(event)}
-              onViewAllEvents={() => setSelectedEvent(mockEventBanners[0])}
+              onViewAllEvents={() => setIsEventsOpen(true)}
             />
 
             {/* 2. 매칭 확정 약속 카드 */}
-            <AppointmentCard
-              appointment={appointment}
-              onOpenDashboard={() => setIsDashboardOpen(true)}
-            />
+            <AppointmentReminders appointments={appointments} now={now} onOpenDashboard={openAppointment} />
 
             {/* 3. 어떤 동행을 찾고 계신가요? 12가지 카테고리 그리드 */}
             <CategoryGrid
@@ -845,8 +865,14 @@ export default function App() {
         {activeTab === 'me' && (
           <div className="flex-1 overflow-y-auto">
             <MyPageView
-              currentAppointment={appointment}
-              onOpenDashboard={() => setIsDashboardOpen(true)}
+              appointments={appointments}
+              onOpenDashboard={openAppointment}
+              requests={joinRequests}
+              requestTab={requestTab}
+              onChangeRequestTab={setRequestTab}
+              onAcceptRequest={handleAcceptRequest}
+              onRejectRequest={handleRejectRequest}
+              onOpenRequestPost={(postId) => setSelectedPostForDetail(activeMeetupPosts.find(post => post.id === postId) || null)}
               currentUser={currentUser}
               onOpenAuth={() => setIsAuthModalOpen(true)}
               onOpenKyc={() => setIsKycModalOpen(true)}
@@ -881,11 +907,13 @@ export default function App() {
         />
 
         {/* Modal: 이벤트 상세 & 불꽃축제 동행 모임 */}
+        {isEventsOpen && <EventsView now={now} onClose={() => setIsEventsOpen(false)} onSelectEvent={setSelectedEvent} />}
         <EventDetailModal
+          now={now}
           event={selectedEvent}
           isOpen={!!selectedEvent}
           onClose={() => setSelectedEvent(null)}
-          relatedPosts={activeMeetupPosts.filter((p) => p.category === '축제' || p.category === '공연')}
+          relatedPosts={activeMeetupPosts.filter((p) => p.eventId && p.eventId === selectedEvent?.id)}
           onJoinMeetup={handleStartJoinRequest}
         />
 
@@ -938,15 +966,6 @@ export default function App() {
           onSubmitRequest={handleSendJoinRequest}
         />
 
-        {/* Phase 3 Modal: 받은 동행 신청 목록 & 1:1 매칭 확정 락 (호스트) */}
-        <MatchRequestsModal
-          isOpen={isMatchRequestsOpen}
-          onClose={() => setIsMatchRequestsOpen(false)}
-          requests={joinRequests}
-          onAccept={handleAcceptRequest}
-          onReject={handleRejectRequest}
-        />
-
         {/* Phase 4 Modal: 안심 안전 5대 수칙 모달 */}
         <SafetyRulesModal
           isOpen={isSafetyRulesOpen}
@@ -979,7 +998,9 @@ export default function App() {
               prev.map((item) => item.id === notificationId ? { ...item, read: true } : item)
             );
             setIsNotificationsOpen(false);
-            setIsMatchRequestsOpen(true);
+            setRequestTab('received');
+            setActiveTab('me');
+            if (!currentUser) setIsAuthModalOpen(true);
           }}
         />
 

@@ -1,3 +1,4 @@
+import { DEMO_USER_ID } from '../data/demoIdentity';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, ShieldCheck, Phone, User, ArrowRight, AlertCircle, Check, Clock, Sparkles, Key, Camera } from 'lucide-react';
 import { CurrentUser } from '../types';
@@ -20,7 +21,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [step, setStep] = useState<SignUpStep>('terms');
 
   // Input states
-  const [phone, setPhone] = useState('010-1234-5678');
+  const [phone, setPhone] = useState('01012345678');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [timerSeconds, setTimerSeconds] = useState(90);
@@ -72,7 +73,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
   const resetForm = () => {
     setMode('signin');
-    setPhone('010-1234-5678');
+    setPhone('01012345678');
     setOtpSent(false);
     setOtpCode('');
     setTimerActive(false);
@@ -136,7 +137,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
   // 인증번호 발송 시뮬레이션
   const handleSendOtp = () => {
-    if (!phone.trim() || phone.trim().length < 10) {
+    if (!/^\d{11}$/.test(phone)) {
       setErrorMessage('올바른 휴대폰 번호를 입력해주세요.');
       return;
     }
@@ -161,7 +162,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     if (isForSignIn) {
       // 로그인 완료 처리
       const loggedUser: CurrentUser = {
-        id: 'user-' + Date.now(),
+        id: DEMO_USER_ID,
         isLoggedIn: true,
         phone: phone.trim(),
         realName: '조유미',
@@ -224,7 +225,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
     const masked = maskRealName(trimmedName);
     const newUser: CurrentUser = {
-      id: 'user-' + Date.now(),
+      id: DEMO_USER_ID,
       isLoggedIn: true,
       phone: phone.trim(),
       realName: trimmedName,
@@ -248,7 +249,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label={mode === 'signin' ? '휴대폰 로그인' : '회원가입'} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -270,6 +271,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             </h3>
           </div>
           <button
+            aria-label="로그인 창 닫기"
             onClick={() => {
               onClose();
               resetForm();
@@ -277,41 +279,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Mode Selector Tabs */}
-        <div className="px-5 pt-3 pb-2 flex border-b border-gray-100">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('signin');
-              setErrorMessage('');
-              setInfoMessage('');
-            }}
-            className={`flex-1 pb-2.5 text-sm font-bold text-center border-b-2 transition-all ${
-              mode === 'signin'
-                ? 'text-[#6c2cf5] border-[#6c2cf5]'
-                : 'text-gray-400 border-transparent hover:text-gray-600'
-            }`}
-          >
-            기존 번호로 로그인
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('signup');
-              setStep('terms');
-              setErrorMessage('');
-              setInfoMessage('');
-            }}
-            className={`flex-1 pb-2.5 text-sm font-bold text-center border-b-2 transition-all ${
-              mode === 'signup'
-                ? 'text-[#6c2cf5] border-[#6c2cf5]'
-                : 'text-gray-400 border-transparent hover:text-gray-600'
-            }`}
-          >
-            휴대폰 본인인증 가입
           </button>
         </div>
 
@@ -442,9 +409,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                       <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
                       <input
                         type="tel"
-                        placeholder="010-0000-0000"
+                        maxLength={11}
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        aria-label="휴대폰 번호"
+                        placeholder="01012345678"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                        onPaste={(e) => { e.preventDefault(); setPhone(e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 11)); }}
                         className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
                       />
                     </div>
@@ -737,9 +709,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
                   <input
                     type="tel"
-                    placeholder="010-0000-0000"
+                    maxLength={11}
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    aria-label="휴대폰 번호"
+                    placeholder="01012345678"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    onPaste={(e) => { e.preventDefault(); setPhone(e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 11)); }}
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
                   />
                 </div>
@@ -799,6 +776,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               <button
                 type="button"
                 onClick={() => {
+                  resetForm();
                   setMode('signup');
                   setStep('terms');
                   setErrorMessage('');
@@ -811,6 +789,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             </div>
           </div>
         )}
+        {mode === 'signup' && <div className="pb-5 text-center"><button onClick={resetForm} className="text-xs text-gray-500">이미 계정이 있으신가요? <span className="text-[#6c2cf5] font-bold underline">로그인으로 돌아가기</span></button></div>}
       </div>
     </div>
   );
