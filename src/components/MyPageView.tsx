@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User, Heart, Calendar, ShieldCheck, ChevronRight, Settings, Star, Award, LogOut, Sparkles, MessageSquare, Clock, Lock, CreditCard } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { User, Heart, Calendar, ShieldCheck, ChevronRight, Settings, Star, Award, LogOut, Sparkles, MessageSquare, Clock, Lock, CreditCard, Camera } from 'lucide-react';
 import { Appointment, CurrentUser, ReviewItem, EscrowPayment } from '../types';
 
 interface MyPageViewProps {
@@ -9,6 +9,7 @@ interface MyPageViewProps {
   onOpenAuth: () => void;
   onOpenKyc: () => void;
   onLogout: () => void;
+  onUpdateAvatar?: (avatar: string) => void;
   reviews?: ReviewItem[];
   escrowPayments?: EscrowPayment[];
 }
@@ -20,10 +21,30 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
   onOpenAuth,
   onOpenKyc,
   onLogout,
+  onUpdateAvatar,
   reviews = [],
   escrowPayments = [],
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'reviews' | 'escrow'>('info');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onUpdateAvatar) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('사진 파일 크기는 5MB 이하여야 합니다.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          onUpdateAvatar(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (!currentUser || !currentUser.isLoggedIn) {
     return (
       <div className="px-5 pt-12 pb-24 text-center space-y-4">
@@ -52,13 +73,26 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
       <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="relative">
+            <div
+              className="relative group cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              title="프로필 사진 변경"
+            >
               <img
                 src={currentUser.avatar}
                 alt="내 프로필"
-                className="w-14 h-14 rounded-full object-cover shadow-xs"
+                className="w-14 h-14 rounded-full object-cover shadow-xs group-hover:opacity-90 transition-opacity"
               />
-              <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white" />
+              <span className="absolute bottom-0 right-0 w-5 h-5 bg-[#6c2cf5] rounded-full border-2 border-white flex items-center justify-center text-white shadow-xs group-hover:scale-110 transition-transform">
+                <Camera className="w-2.5 h-2.5" />
+              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
 
             <div>

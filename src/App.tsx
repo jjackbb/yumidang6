@@ -709,6 +709,10 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  const handleUpdateAvatar = (newAvatar: string) => {
+    setCurrentUser((prev) => (prev ? { ...prev, avatar: newAvatar } : null));
+  };
+
   // Phase 6: Pro Escrow Payment Handlers
   const handleOpenEscrow = (post: MeetupPost) => {
     setSelectedPostForDetail(null);
@@ -863,6 +867,7 @@ export default function App() {
               onOpenAuth={() => setIsAuthModalOpen(true)}
               onOpenKyc={() => setIsKycModalOpen(true)}
               onLogout={handleLogout}
+              onUpdateAvatar={handleUpdateAvatar}
               reviews={reviews}
               escrowPayments={escrowPayments}
             />

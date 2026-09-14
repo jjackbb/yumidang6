@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Phone, User, ArrowRight, AlertCircle, Check, Clock, Sparkles, Key } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, ShieldCheck, Phone, User, ArrowRight, AlertCircle, Check, Clock, Sparkles, Key, Camera } from 'lucide-react';
 import { CurrentUser } from '../types';
 import { maskRealName } from '../utils/maskName';
 
@@ -11,6 +11,9 @@ interface AuthModalProps {
 
 type AuthMode = 'signup' | 'signin';
 type SignUpStep = 'terms' | 'phone' | 'profile';
+
+const DEFAULT_FEMALE_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';
+const DEFAULT_MALE_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -28,7 +31,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [gender, setGender] = useState<'female' | 'male' | 'undisclosed'>('female');
   const [ageGroup, setAgeGroup] = useState('20대');
   const [referralCode, setReferralCode] = useState('');
+  const [avatar, setAvatar] = useState(DEFAULT_FEMALE_AVATAR);
+  const [isCustomAvatar, setIsCustomAvatar] = useState(false);
   const [bio, setBio] = useState('브런치와 주말 문화생활을 좋아하는 동행러입니다.');
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Terms
   const [agreedAge, setAgreedAge] = useState(false);
@@ -72,9 +79,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setTimerSeconds(90);
     setRealName('조유미');
     setReferralCode('');
+    setAvatar(DEFAULT_FEMALE_AVATAR);
+    setIsCustomAvatar(false);
     setErrorMessage('');
     setInfoMessage('');
     setStep('terms');
+  };
+
+  const handleGenderChange = (g: 'female' | 'male') => {
+    setGender(g);
+    setErrorMessage('');
+    if (!isCustomAvatar) {
+      setAvatar(g === 'male' ? DEFAULT_MALE_AVATAR : DEFAULT_FEMALE_AVATAR);
+    }
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage('프로필 사진은 5MB 이하의 이미지 파일만 등록할 수 있습니다.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setAvatar(reader.result);
+          setIsCustomAvatar(true);
+          setErrorMessage('');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleRealNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,9 +236,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       sugarContent: 50, // 신규 가입 기본 50 Brix
       isPhoneVerified: true,
       isKycVerified: false,
-      avatar: gender === 'male'
-        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'
-        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      avatar: avatar,
       bio: bio.trim(),
       joinedAt: '방금 가입',
       referralCode: gender === 'male' ? referralCode.trim() : undefined,
@@ -491,6 +525,56 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             {/* STEP 3: 실명 마스킹 프로필 등록 */}
             {step === 'profile' && (
               <form onSubmit={handleCompleteSignUp} className="p-5 space-y-4">
+                {/* 프로필 사진 등록 */}
+                <div className="flex flex-col items-center justify-center pt-1 pb-2">
+                  <div
+                    className="relative group cursor-pointer"
+                    onClick={() => avatarInputRef.current?.click()}
+                    title="프로필 사진 등록 / 변경"
+                  >
+                    <img
+                      src={avatar}
+                      alt="프로필 사진"
+                      className="w-20 h-20 rounded-full object-cover ring-4 ring-purple-100 shadow-md transition-all group-hover:opacity-90"
+                    />
+                    <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#6c2cf5] hover:bg-[#5820d8] text-white flex items-center justify-center shadow-md border-2 border-white group-hover:scale-110 transition-transform">
+                      <Camera className="w-3.5 h-3.5" />
+                    </div>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="text-xs font-bold text-[#6c2cf5] hover:text-[#5820d8] px-2.5 py-1 rounded-lg bg-[#f0edff] hover:bg-[#e4dcff] transition-colors"
+                    >
+                      {isCustomAvatar ? '내 사진 다시 선택' : '내 사진 업로드'}
+                    </button>
+                    {isCustomAvatar && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAvatar(gender === 'male' ? DEFAULT_MALE_AVATAR : DEFAULT_FEMALE_AVATAR);
+                          setIsCustomAvatar(false);
+                        }}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 underline"
+                      >
+                        기본 사진으로
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-gray-400 mt-1">
+                    동행 파트너에게 신뢰를 주는 본인 사진을 등록해보세요
+                  </span>
+                </div>
+
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-gray-700">
@@ -543,10 +627,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         <button
                           type="button"
                           key={g}
-                          onClick={() => {
-                            setGender(g);
-                            setErrorMessage('');
-                          }}
+                          onClick={() => handleGenderChange(g)}
                           className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                             gender === g
                               ? 'bg-[#f0edff] text-[#6c2cf5] border border-[#6c2cf5]/30'
