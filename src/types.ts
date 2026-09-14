@@ -122,6 +122,7 @@ export interface CurrentUser {
   avatar: string;
   bio: string;
   joinedAt: string;
+  referralCode?: string;
   isProHost?: boolean;
   proSpecialty?: string;
 }

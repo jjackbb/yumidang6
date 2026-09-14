@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Phone, User, ArrowRight, AlertCircle, Check, Clock, Sparkles } from 'lucide-react';
+import { X, ShieldCheck, Phone, User, ArrowRight, AlertCircle, Check, Clock, Sparkles, Key } from 'lucide-react';
 import { CurrentUser } from '../types';
 import { maskRealName } from '../utils/maskName';
 
@@ -27,6 +27,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [realName, setRealName] = useState('조유미');
   const [gender, setGender] = useState<'female' | 'male' | 'undisclosed'>('female');
   const [ageGroup, setAgeGroup] = useState('20대');
+  const [referralCode, setReferralCode] = useState('');
   const [bio, setBio] = useState('브런치와 주말 문화생활을 좋아하는 동행러입니다.');
 
   // Terms
@@ -69,10 +70,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setOtpCode('');
     setTimerActive(false);
     setTimerSeconds(90);
+    setRealName('조유미');
+    setReferralCode('');
     setErrorMessage('');
     setInfoMessage('');
     setStep('terms');
   };
+
+  const handleRealNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 영문, 숫자, 특수문자, 공백 등 한글(자음, 모음, 완성형) 이외의 문자는 실시간 차단
+    const val = e.target.value.replace(/[^ㄱ-ㅎㅏ-ㅣ가-힣]/g, '');
+    setRealName(val);
+    setErrorMessage('');
+  };
+
+  const hasSeparatedJamo = /[ㄱ-ㅎㅏ-ㅣ]/.test(realName);
 
   useEffect(() => {
     if (isOpen) {
@@ -142,17 +154,44 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   // 회원가입 최종 완료
   const handleCompleteSignUp = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!realName.trim()) {
+    const trimmedName = realName.trim();
+
+    // 1. 실명 필수 검증
+    if (!trimmedName) {
       setErrorMessage('실명을 입력해주세요.');
       return;
     }
 
-    const masked = maskRealName(realName);
+    // 2. 한글 자음/모음 분리 입력 차단 검증
+    if (/[ㄱ-ㅎㅏ-ㅣ]/.test(trimmedName)) {
+      setErrorMessage('실명에 완성되지 않은 자음이나 모음(ㄱ~ㅎ, ㅏ~ㅣ)이 포함되어 있습니다. 완전한 한글 음절로 입력해주세요.');
+      return;
+    }
+
+    // 3. 한글 완성형 2자 이상 10자 이하 검증
+    if (!/^[가-힣]{2,10}$/.test(trimmedName)) {
+      setErrorMessage('실명은 2자 이상의 완전한 한글로만 입력해주세요. (예: 조유미, 김철수)');
+      return;
+    }
+
+    // 4. 남성 회원 추천인 코드 필수 검증
+    if (gender === 'male') {
+      if (!referralCode.trim()) {
+        setErrorMessage('남성 회원은 가입 시 추천인 코드가 필수입니다.');
+        return;
+      }
+      if (referralCode.trim().length < 4) {
+        setErrorMessage('올바른 추천인 코드를 입력해주세요 (4자리 이상).');
+        return;
+      }
+    }
+
+    const masked = maskRealName(trimmedName);
     const newUser: CurrentUser = {
       id: 'user-' + Date.now(),
       isLoggedIn: true,
       phone: phone.trim(),
-      realName: realName.trim(),
+      realName: trimmedName,
       maskedName: masked,
       nickname: masked, // 가공된 별명 대신 실명 마스킹 사용
       gender,
@@ -161,9 +200,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       sugarContent: 50, // 신규 가입 기본 50 Brix
       isPhoneVerified: true,
       isKycVerified: false,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      avatar: gender === 'male'
+        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
       bio: bio.trim(),
       joinedAt: '방금 가입',
+      referralCode: gender === 'male' ? referralCode.trim() : undefined,
     };
 
     onAuthSuccess(newUser);
@@ -452,7 +494,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-gray-700">
-                      실명 입력 (필수)
+                      한글 실명 입력 (필수)
                     </label>
                     <span className="text-[11px] font-semibold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
                       화면 표기: {maskRealName(realName) || '미입력'}
@@ -463,12 +505,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                     <input
                       type="text"
                       required
-                      placeholder="실명을 입력해주세요 (예: 조유미)"
+                      placeholder="한글 실명을 입력해주세요 (예: 조유미)"
                       value={realName}
-                      onChange={(e) => setRealName(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
+                      onChange={handleRealNameChange}
+                      className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border focus:outline-none focus:ring-2 ${
+                        hasSeparatedJamo
+                          ? 'border-rose-300 focus:ring-rose-400/30 focus:border-rose-500'
+                          : 'border-gray-200 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]'
+                      }`}
                     />
                   </div>
+                  {hasSeparatedJamo && (
+                    <p className="text-[11px] text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>자음/모음이 분리되지 않은 완전한 한글 음절로 입력해주세요.</span>
+                    </p>
+                  )}
                   <div className="p-3 mt-2 bg-purple-50/70 rounded-2xl space-y-1">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
                       <ShieldCheck className="w-3.5 h-3.5 text-[#6c2cf5]" />
@@ -491,7 +543,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         <button
                           type="button"
                           key={g}
-                          onClick={() => setGender(g)}
+                          onClick={() => {
+                            setGender(g);
+                            setErrorMessage('');
+                          }}
                           className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                             gender === g
                               ? 'bg-[#f0edff] text-[#6c2cf5] border border-[#6c2cf5]/30'
@@ -520,6 +575,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                     </select>
                   </div>
                 </div>
+
+                {/* 남성 가입 시 필수 추천인 코드 입력 섹션 */}
+                {gender === 'male' && (
+                  <div className="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-blue-600" />
+                        <span>남성 회원 추천인 코드 (필수)</span>
+                      </label>
+                      <span className="text-[10px] font-extrabold text-blue-600 bg-blue-100/90 px-2 py-0.5 rounded">
+                        필수 입력
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        placeholder="추천인 코드 입력 (예: SAFE-7788)"
+                        value={referralCode}
+                        onChange={(e) => {
+                          setReferralCode(e.target.value.toUpperCase());
+                          setErrorMessage('');
+                        }}
+                        className="w-full pl-3 pr-24 py-2.5 rounded-xl bg-white text-xs border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 font-mono tracking-wider"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReferralCode('SAFE-7788');
+                          setErrorMessage('');
+                        }}
+                        className="absolute right-1.5 top-1.5 px-2.5 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                      >
+                        테스트코드 입력
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-blue-700/90 leading-tight">
+                      * 1:1 동행 안전 보증을 위해 남성 회원은 기존 보증 회원의 추천인 코드가 필수입니다.
+                    </p>
+                  </div>
+                )}
 
                 {/* 당도 안내 */}
                 <div className="p-3.5 bg-[#f8f6ff] rounded-2xl flex items-center justify-between text-xs">
