@@ -45,9 +45,9 @@ export const Header: React.FC<HeaderProps> = ({
         ) : (
           <button
             onClick={onOpenAuth}
-            className="px-3 py-1 bg-[#6c2cf5] text-white text-xs font-bold rounded-lg hover:bg-[#5820d8] transition-colors shadow-xs"
+            className="px-2.5 py-1 bg-[#6c2cf5] text-white text-xs font-bold rounded-lg hover:bg-[#5820d8] transition-colors shadow-xs"
           >
-            로그인
+            본인인증
           </button>
         )}
 

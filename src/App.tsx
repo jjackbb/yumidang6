@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import { maskRealName } from './utils/maskName';
 import { trackBackEvent } from './utils/trackBackEvent';
+import { trackFunnelEvent } from './utils/trackFunnelEvent';
 import { Header } from './components/Header';
 import { EventBanner } from './components/EventBanner';
 import { AppointmentCard } from './components/AppointmentCard';
@@ -140,6 +141,11 @@ export default function App() {
   useEffect(() => {
     if (selectedPostForDetail) {
       modalOpenTimes.current['POST_DETAIL'] = Date.now();
+      trackFunnelEvent({
+        step: 'POST_DETAIL_VIEW',
+        targetPostId: selectedPostForDetail.id,
+        pageKey: 'POST_DETAIL',
+      });
     } else if (modalOpenTimes.current['POST_DETAIL']) {
       const durationMs = Date.now() - modalOpenTimes.current['POST_DETAIL'];
       delete modalOpenTimes.current['POST_DETAIL'];
@@ -327,6 +333,12 @@ export default function App() {
 
   const handleCreateMeetup = (newPost: MeetupPost) => {
     setMeetupPosts((prev) => [newPost, ...prev]);
+    trackFunnelEvent({
+      step: 'CREATE_MEETUP_SUBMIT',
+      targetPostId: newPost.id,
+      pageKey: 'CREATE_MEETUP',
+      metadata: { category: newPost.category, title: newPost.title },
+    });
     // Also add notification
     setNotifications((prev) => [
       {
@@ -415,6 +427,12 @@ export default function App() {
       return;
     }
 
+    trackFunnelEvent({
+      step: 'JOIN_REQUEST_OPEN',
+      targetPostId: post.id,
+      pageKey: 'JOIN_REQUEST',
+    });
+
     setSelectedPostForJoin(post);
     setSelectedPostForDetail(null);
     setSelectedEvent(null);
@@ -426,6 +444,13 @@ export default function App() {
   const handleSendJoinRequest = (postId: string, message: string) => {
     const post = activeMeetupPosts.find((p) => p.id === postId) || selectedPostForJoin;
     if (!post || !currentUser) return;
+
+    trackFunnelEvent({
+      step: 'JOIN_REQUEST_SUBMIT',
+      targetPostId: post.id,
+      pageKey: 'JOIN_REQUEST',
+      metadata: { messageLength: message.length },
+    });
 
     const newReq: JoinRequest = {
       id: 'req-' + Date.now(),
@@ -461,6 +486,13 @@ export default function App() {
   const handleAcceptRequest = (requestId: string) => {
     const targetReq = joinRequests.find((r) => r.id === requestId);
     if (!targetReq) return;
+
+    trackFunnelEvent({
+      step: 'MATCH_ACCEPT',
+      targetPostId: targetReq.postId,
+      pageKey: 'MATCH_REQUESTS',
+      metadata: { requesterId: targetReq.requesterId },
+    });
 
     // 1. Single Lock: Set chosen request accepted, others for the same post rejected
     setJoinRequests((prev) =>
@@ -641,7 +673,7 @@ export default function App() {
     setNotifications((prev) => [
       {
         id: 'notif-' + Date.now(),
-        title: '로그인 완료',
+        title: '휴대폰 본인인증 완료',
         description: `${newUser.maskedName}님, 환영합니다! 신뢰할 수 있는 1:1 동행을 시작하세요.`,
         time: '방금',
         read: false,

@@ -32,13 +32,13 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
         </div>
         <h3 className="text-lg font-bold text-gray-900">로그인이 필요한 서비스입니다</h3>
         <p className="text-xs text-gray-500 max-w-[280px] mx-auto leading-relaxed">
-          유미당은 신뢰할 수 있는 1:1 동행을 위해 간편한 이메일 로그인 후 이용하실 수 있습니다.
+          유미당은 신뢰할 수 있는 1:1 동행을 위해 간단한 휴대폰 본인확인 후 이용하실 수 있습니다.
         </p>
         <button
           onClick={onOpenAuth}
           className="w-full max-w-xs mx-auto py-3.5 bg-[#6c2cf5] text-white font-bold rounded-xl text-sm shadow-md shadow-purple-500/20 active:scale-98 transition-all"
         >
-          이메일 로그인 / 회원가입으로 시작하기
+          휴대폰 본인인증으로 시작하기
         </button>
       </div>
     );
