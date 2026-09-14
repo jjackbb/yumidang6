@@ -1,16 +1,31 @@
 import { Appointment, CategoryItem, MeetupPost, NotificationItem } from '../types';
 import { DEMO_USER_ID } from './demoIdentity';
 import { demoSchedule, formatSchedule } from '../utils/calendar';
+import { formatMeetupRange } from '../utils/meetupLifecycle';
+
+const schedules: Record<string, { startsAt: string; endsAt: string; description: string }> = {
+  'post-demo-host': { startsAt: demoSchedule(3, 15), endsAt: demoSchedule(3, 16), description: '성수동에서 디저트 코스를 함께 즐겨요. 한 시간 동안 디저트를 맛보고 편안하게 이야기 나누고 싶어요. 메뉴 비용은 각자 부담해요.' },
+  'post-now': { startsAt: demoSchedule(0, 23), endsAt: demoSchedule(1, 0), description: '서울숲 근처에서 커피를 마시며 잠깐 이야기 나눠요. 음료는 각자 주문하고 자정 전에 마무리할 예정이에요.' },
+  'post-1': { startsAt: demoSchedule(1, 16), endsAt: demoSchedule(1, 19), description: '한강공원에서 피크닉을 함께해요. 돗자리는 제가 준비할게요. 개인 음료와 간단한 간식을 챙겨오고, 귀가 시간에 맞춰 마무리해요.' },
+  'post-2': { startsAt: demoSchedule(2, 14), endsAt: demoSchedule(2, 15), description: '브런치를 함께 먹으며 한 시간 정도 이야기 나눠요. 프렌치 토스트와 에그 베네딕트가 궁금해서 방문하려고 해요. 식사 비용은 각자 부담합니다.' },
+  'post-3': { startsAt: demoSchedule(5, 11), endsAt: demoSchedule(5, 13), description: '두 시간 동안 전시를 천천히 관람해요. 각자 작품을 보고 로비에서 만나 감상을 나누면 좋겠어요. 입장권은 각자 준비하고 카페 방문은 서로 시간이 맞으면 정해요.' },
+  'post-4': { startsAt: demoSchedule(7, 14), endsAt: demoSchedule(7, 15), description: '14:00부터 15:00까지 선정릉 주변을 가볍게 걸어요. 빠르게 걷기보다는 편안하게 이야기하며 산책하려고 해요. 물은 각자 챙겨오고, 비가 오면 채팅으로 일정을 다시 정해요.' },
+  'post-5': { startsAt: demoSchedule(10, 14), endsAt: demoSchedule(10, 16), description: '가죽 키링을 만드는 원데이 클래스에 함께 참여해요. 수업은 두 시간이며 각자 수강 신청과 재료비를 준비해요. 처음 해보시는 분도 함께 배워요.' },
+  'post-6': { startsAt: demoSchedule(4, 14), endsAt: demoSchedule(4, 16), description: '성수동 골목을 걸으며 자연스러운 스냅 사진을 남겨요. 촬영 방식과 원하는 분위기를 먼저 이야기하고 진행해요. 자세한 포함 내역은 아래 커리큘럼을 확인해 주세요.' },
+  'post-7': { startsAt: demoSchedule(6, 20), endsAt: demoSchedule(6, 21), description: '한 시간 동안 편안한 속도로 달려요. 준비운동과 정리운동을 포함하며, 컨디션에 맞춰 강도를 조절해요.' },
+};
 
 export const mockAppointment: Appointment = {
   id: 'appt-gangnam-brunch',
   postId: 'post-2',
   scheduledAt: demoSchedule(2),
+  endsAt: demoSchedule(2, 15),
+  participantIds: [DEMO_USER_ID, 'user-default'],
   status: '매칭 확정',
   dDay: 'D-2',
   appointmentBadge: '확정된 약속',
   title: '조*미 님과의 강남맛집 식사 동행',
-  dateTime: formatSchedule(demoSchedule(2)),
+  dateTime: formatMeetupRange(demoSchedule(2), demoSchedule(2, 15)),
   location: '서울 강남구 대치동 르브런치',
   addressDetail: '서울특별시 강남구 삼성로 312 2층 르브런치 대치본점',
   partnerName: '조*미',
@@ -24,9 +39,9 @@ export const mockAppointment: Appointment = {
 
 export const mockAppointments: Appointment[] = [
   mockAppointment,
-  { ...mockAppointment, id: 'appt-art', postId: 'post-3', title: '서*진 님과의 전시 산책', partnerName: '서*진', location: '종로구 삼청동', scheduledAt: demoSchedule(5, 11), dateTime: formatSchedule(demoSchedule(5, 11)), dDay: 'D-5' },
-  { ...mockAppointment, id: 'appt-walk', postId: 'post-4', title: '강*훈 님과의 저녁 산책', partnerName: '강*훈', location: '선정릉 산책로', scheduledAt: demoSchedule(7, 19), dateTime: formatSchedule(demoSchedule(7, 19)), dDay: 'D-7' },
-  { ...mockAppointment, id: 'appt-later', title: '윤*솔 님과의 공예 클래스', partnerName: '윤*솔', location: '성수동 아틀리에', scheduledAt: demoSchedule(10), dateTime: formatSchedule(demoSchedule(10)), dDay: 'D-10' },
+  { ...mockAppointment, id: 'appt-art', postId: 'post-3', title: '서*진 님과의 전시 산책', partnerName: '서*진', participantIds: [DEMO_USER_ID, 'user-seojin'], location: '종로구 삼청동', scheduledAt: schedules['post-3'].startsAt, endsAt: schedules['post-3'].endsAt, dateTime: formatMeetupRange(schedules['post-3'].startsAt, schedules['post-3'].endsAt), dDay: 'D-5' },
+  { ...mockAppointment, id: 'appt-walk', postId: 'post-4', title: '강*훈 님과의 공원 산책', partnerName: '강*훈', participantIds: [DEMO_USER_ID, 'user-hoon'], location: '선정릉 산책로', scheduledAt: schedules['post-4'].startsAt, endsAt: schedules['post-4'].endsAt, dateTime: formatMeetupRange(schedules['post-4'].startsAt, schedules['post-4'].endsAt), dDay: 'D-7' },
+  { ...mockAppointment, id: 'appt-later', postId: 'post-5', title: '윤*솔 님과의 공예 클래스', partnerName: '윤*솔', participantIds: [DEMO_USER_ID, 'user-sol'], location: '성수동 아틀리에', scheduledAt: schedules['post-5'].startsAt, endsAt: schedules['post-5'].endsAt, dateTime: formatMeetupRange(schedules['post-5'].startsAt, schedules['post-5'].endsAt), dDay: 'D-10' },
 ];
 
 export const mockCategories: CategoryItem[] = [
@@ -117,7 +132,7 @@ export const mockCategories: CategoryItem[] = [
   },
 ];
 
-export const mockMeetupPosts: MeetupPost[] = [
+const seedMeetupPosts: MeetupPost[] = [
   {
     id: 'post-demo-host', category: '식사', title: '성수동 디저트 오마카세 같이 가실 분', author: '조*미', authorId: DEMO_USER_ID,
     avatar: mockAppointment.partnerAvatar, startsAt: demoSchedule(3, 15), time: formatSchedule(demoSchedule(3, 15)), location: '성수동 디저트 카페',
@@ -182,7 +197,7 @@ export const mockMeetupPosts: MeetupPost[] = [
   {
     id: 'post-4',
     category: '산책',
-    title: '선정릉 산책로 저녁 1시간 가볍게 걷기 메이트 (1:1) 🐕',
+    title: '선정릉 공원 산책 14:00~15:00 가볍게 걷기 (1:1) 🐕',
     author: '강*훈',
     authorId: 'user-hoon',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
@@ -190,10 +205,10 @@ export const mockMeetupPosts: MeetupPost[] = [
     location: '강남구 삼성동 선정릉',
     publicLocation: '선정릉역 3번 출구 매표소 앞',
     secretLocation: '선정릉 정문 산책로 입구 벤치',
-    partnerPreferences: '퇴근 후 가볍게 걸으며 하루 피로 푸실 분, 반려견 동반도 가능합니다',
+    partnerPreferences: '오후에 가볍게 걸으며 쉬어가실 분, 반려견 동반도 가능합니다',
     currentMembers: 1,
     maxMembers: 2,
-    tags: ['반려견환영', '퇴근후산책', '1대1산책'],
+    tags: ['반려견환영', '공원산책', '1대1산책'],
     status: 'recruiting',
   },
   {
@@ -273,6 +288,11 @@ export const mockMeetupPosts: MeetupPost[] = [
     },
   }
 ];
+
+export const mockMeetupPosts: MeetupPost[] = seedMeetupPosts.map(post => {
+  const schedule = schedules[post.id];
+  return schedule ? { ...post, ...schedule, time: formatMeetupRange(schedule.startsAt, schedule.endsAt) } : post;
+});
 
 export const mockNotifications: NotificationItem[] = [
   {

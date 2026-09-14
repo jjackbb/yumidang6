@@ -234,8 +234,8 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
       {activeSubTab === 'info' && (
         <div className="space-y-4">
           <div className="bg-white rounded-[24px] p-5 shadow-sm">
-            <h3 className="text-sm font-bold text-[#6c2cf5] mb-3">확정 동행 ({appointments.filter(item => item.status !== '동행 완료').length}건)</h3>
-            <div className="divide-y divide-gray-100">{appointments.filter(item => item.status !== '동행 완료').map(item => <button key={item.id} onClick={() => onOpenDashboard(item)} className="w-full py-3 text-left flex items-center gap-3 justify-between"><div><h4 className="text-sm font-bold">{item.title}</h4><p className="text-xs text-gray-500 mt-1">{item.dateTime}</p></div><ChevronRight className="w-4 h-4 shrink-0 text-gray-400" /></button>)}</div>
+            <h3 className="text-sm font-bold text-[#6c2cf5] mb-3">나의 동행 ({appointments.length}건)</h3>
+            <div className="divide-y divide-gray-100">{appointments.map(item => <button key={item.id} onClick={() => onOpenDashboard(item)} className="w-full py-3 text-left flex items-center gap-3 justify-between"><div><h4 className="text-sm font-bold">{item.title}</h4><p className="text-xs text-gray-500 mt-1">{item.dateTime}</p><span className="text-[11px] text-[#6c2cf5]">{item.status}</span></div><ChevronRight className="w-4 h-4 shrink-0 text-gray-400" /></button>)}</div>
           </div>
 
           {/* Menu List */}

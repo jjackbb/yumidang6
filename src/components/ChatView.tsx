@@ -1,15 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, MapPin, Clock, CheckCheck, Info, CalendarClock, Check, X, Sparkles, PhoneCall, ShieldCheck, ShieldAlert, AlertTriangle, Star } from 'lucide-react';
 import { Appointment, ScheduleProposal } from '../types';
+import { CompletionActions, CompletionActionsProps } from './CompletionActions';
+import { formatClock, formatMeetupRange, isValidMeetupRange } from '../utils/meetupLifecycle';
+import { koreaDateKey } from '../utils/calendar';
 
 interface ChatViewProps {
   appointment: Appointment;
   onOpenDashboard: () => void;
-  onUpdateAppointment?: (newSchedule: { dateTime: string; location: string }) => void;
+  onUpdateAppointment?: (newSchedule: { dateTime: string; location: string; startsAt?: string; endsAt?: string }) => void;
   onOpenVoiceCall?: () => void;
   onOpenSafetyRules?: () => void;
   onOpenReport?: () => void;
-  onOpenReview?: () => void;
+  completionActions: CompletionActionsProps;
 }
 
 interface Message {
@@ -27,7 +30,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onOpenVoiceCall,
   onOpenSafetyRules,
   onOpenReport,
-  onOpenReview,
+  completionActions,
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -52,7 +55,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const [inputVal, setInputVal] = useState('');
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
-  const [proposedDateTime, setProposedDateTime] = useState('2026.9.12(토) 15:00');
+  const localInput = (iso?: string) => iso && Number.isFinite(Date.parse(iso)) ? `${koreaDateKey(new Date(iso))}T${formatClock(iso)}` : '';
+  const [proposedDateTime, setProposedDateTime] = useState(localInput(appointment.scheduledAt));
+  const [proposedEndDateTime, setProposedEndDateTime] = useState(localInput(appointment.endsAt));
+  const [proposalError, setProposalError] = useState('');
   const [proposedLocation, setProposedLocation] = useState(appointment.location);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -96,10 +102,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const handleSendProposal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!proposedDateTime.trim() || !proposedLocation.trim()) return;
+    const startValue = `${proposedDateTime}:00+09:00`;
+    const endValue = `${proposedEndDateTime}:00+09:00`;
+    if (!isValidMeetupRange(startValue, endValue)) { setProposalError('종료 시각은 시작 시각보다 늦어야 해요.'); return; }
+    const startsAt = new Date(startValue).toISOString();
+    const endsAt = new Date(endValue).toISOString();
+    const dateTime = formatMeetupRange(startsAt, endsAt);
+    setProposalError('');
 
     const newProposal: ScheduleProposal = {
       id: 'prop-' + Date.now(),
-      newDateTime: proposedDateTime.trim(),
+      newDateTime: dateTime,
+      startsAt,
+      endsAt,
       newLocation: proposedLocation.trim(),
       status: 'pending',
       proposerName: '나',
@@ -108,7 +123,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const newMsg: Message = {
       id: 'm-prop-' + Date.now(),
       sender: 'me',
-      text: `[일정/장소 변경 제안] ${proposedDateTime.trim()} / ${proposedLocation.trim()} (으)로 변경을 제안합니다.`,
+      text: `[일정/장소 변경 제안] ${dateTime} / ${proposedLocation.trim()} (으)로 변경을 제안합니다.`,
       time: '방금',
       proposal: newProposal,
     };
@@ -132,7 +147,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       if (onUpdateAppointment) {
         onUpdateAppointment({
-          dateTime: proposedDateTime.trim(),
+          dateTime,
+          startsAt,
+          endsAt,
           location: proposedLocation.trim(),
         });
       }
@@ -165,6 +182,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     if (onUpdateAppointment) {
       onUpdateAppointment({
         dateTime: proposal.newDateTime,
+        startsAt: proposal.startsAt,
+        endsAt: proposal.endsAt,
         location: proposal.newLocation,
       });
     }
@@ -282,27 +301,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Appointment mini-summary bar (Dynamic reflection) */}
       <div className="bg-white/90 backdrop-blur-xs px-4 py-2.5 shadow-2xs flex items-center justify-between text-xs text-gray-600">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-[#6c2cf5]" />
           <span className="font-bold text-gray-900">{appointment.dateTime}</span>
           <span className="text-gray-300">|</span>
           <MapPin className="w-3.5 h-3.5 text-[#6c2cf5]" />
           <span className="truncate max-w-[150px] font-semibold text-gray-800">{appointment.location}</span>
         </div>
-        {onOpenReview ? (
-          <button
-            onClick={onOpenReview}
-            className="font-bold text-[11px] text-white bg-gradient-to-r from-[#6c2cf5] to-[#8b5cf6] px-3 py-1 rounded-full shadow-xs hover:shadow-sm active:scale-95 transition-all flex items-center gap-1 shrink-0"
-          >
-            <span>만남 완료 & 평가</span>
-            <Star className="w-3 h-3 fill-amber-300 text-amber-300" />
-          </button>
-        ) : (
-          <span className="font-bold text-[#6c2cf5] bg-[#f0edff] px-2.5 py-0.5 rounded-full shrink-0">
-            확정됨 (2/2명)
-          </span>
-        )}
+
       </div>
+      <div className="px-4 py-2"><CompletionActions {...completionActions} /></div>
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -467,9 +475,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
             <form onSubmit={handleSendProposal} className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-gray-700 mb-1">새로운 날짜 및 시간</label>
+                <label className="block font-bold text-gray-700 mb-1">새 시작 날짜·시각</label>
                 <input
-                  type="text"
+                  type="datetime-local"
+                  aria-label="새 시작 날짜·시각"
                   value={proposedDateTime}
                   onChange={(e) => setProposedDateTime(e.target.value)}
                   placeholder="예: 2026.9.12(토) 15:30"
@@ -477,6 +486,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   required
                 />
               </div>
+
+              <div><label htmlFor="proposal-end" className="block font-bold text-gray-700 mb-1">새 종료 날짜·시각</label><input id="proposal-end" type="datetime-local" required value={proposedEndDateTime} onChange={e => setProposedEndDateTime(e.target.value)} className="w-full px-3.5 py-2.5 bg-gray-50 rounded-xl text-gray-900" /></div>
+              {proposalError && <p role="alert" className="text-red-600">{proposalError}</p>}
 
               <div>
                 <label className="block font-bold text-gray-700 mb-1">새로운 만남 장소</label>
@@ -516,4 +528,3 @@ export const ChatView: React.FC<ChatViewProps> = ({
     </div>
   );
 };
-

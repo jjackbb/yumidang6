@@ -16,6 +16,7 @@ import { RequestTab } from './components/CompanionRequests';
 import { sampleEventsForMonth } from './data/events';
 import { DEMO_USER_ID } from './data/demoIdentity';
 import { appointmentStart, koreaDateParts } from './utils/calendar';
+import { completionAvailability, formatMeetupRange, isValidMeetupRange } from './utils/meetupLifecycle';
 import { CategoryGrid } from './components/CategoryGrid';
 import { BottomNav, NavTab } from './components/BottomNav';
 import { DashboardModal } from './components/DashboardModal';
@@ -145,6 +146,10 @@ export default function App() {
 
   // Phase 5: Mutual Blind Review & Sugar Settling states
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
+  const [submittedReviews, setSubmittedReviews] = useState<Record<string, { rating: number; badges: string[]; comment: string }>>({});
+  const submissionLocks = useRef(new Set<string>());
+  const settlementLocks = useRef(new Set<string>());
 
   // UI 뒤로가기/닫기 이벤트 및 체류시간 실시간 추적 (Supabase 정규화 테이블 ui_back_events)
   const modalOpenTimes = useRef<Record<string, number>>({});
@@ -310,6 +315,15 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [activeAppointmentId, setActiveAppointmentId] = useState(mockAppointments[0].id);
   const appointment = appointments.find(item => item.id === activeAppointmentId) || appointments[0];
+  const reviewAppointment = appointments.find(item => item.id === reviewAppointmentId) || appointment;
+  const reviewKey = (id: string) => `${currentUser?.id}:${id}`;
+  const completion = completionAvailability(appointment, currentUser?.id, now);
+  useEffect(() => {
+    const delay = Math.min(...appointments.map(item => Date.parse(item.endsAt || '') - Date.now()).filter(value => value > 0));
+    if (!Number.isFinite(delay)) return;
+    const timer = setTimeout(() => setNow(new Date()), Math.min(delay + 1, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [appointments, now]);
   const setAppointment = (next: Appointment | ((previous: Appointment) => Appointment)) => {
     if (typeof next === 'function') {
       setAppointments(previous => previous.map(item => item.id === activeAppointmentId ? next(item) : item));
@@ -389,6 +403,9 @@ export default function App() {
   const handleUpdatePost = (updatedPost: MeetupPost) => {
     setMeetupPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)));
     setSelectedPostForDetail(updatedPost);
+    setAppointments(prev => prev.map(item => item.postId === updatedPost.id && item.status !== '동행 완료'
+      ? { ...item, title: updatedPost.title, scheduledAt: updatedPost.startsAt, endsAt: updatedPost.endsAt, dateTime: updatedPost.time, location: updatedPost.location, addressDetail: updatedPost.secretLocation || updatedPost.location }
+      : item));
     setEditingPost(null);
     setNotifications((prev) => [
       {
@@ -556,6 +573,7 @@ export default function App() {
     // Add the newly accepted appointment without replacing other confirmed plans.
     setAppointment({
       id: 'apt-' + Date.now(), postId: targetReq.postId, scheduledAt: targetPost?.startsAt,
+      endsAt: targetPost?.endsAt, participantIds: [targetReq.hostId, targetReq.requesterId],
       title: targetReq.postTitle, dateTime: targetPost?.time || '', location: targetPost?.location || '',
       status: '매칭 확정', partnerName: targetReq.requesterName, partnerAvatar: targetReq.requesterAvatar,
       partnerRating: 0, partnerBio: targetReq.message, menuRecommendation: targetPost?.category || '',
@@ -588,13 +606,16 @@ export default function App() {
   };
 
   // Phase 3: Real-time Schedule update from ChatView proposal
-  const handleUpdateAppointment = (newSchedule: { dateTime: string; location: string }) => {
+  const handleUpdateAppointment = (newSchedule: { dateTime: string; location: string; startsAt?: string; endsAt?: string }) => {
+    if (appointment.status === '동행 완료' || !isValidMeetupRange(newSchedule.startsAt, newSchedule.endsAt)) return;
     setAppointment((prev) => ({
       ...prev,
       dateTime: newSchedule.dateTime,
-      scheduledAt: Number.isFinite(appointmentStart({ dateTime: newSchedule.dateTime }).getTime()) ? appointmentStart({ dateTime: newSchedule.dateTime }).toISOString() : undefined,
+      scheduledAt: newSchedule.startsAt,
+      endsAt: newSchedule.endsAt,
       location: newSchedule.location,
     }));
+    setMeetupPosts(prev => prev.map(post => post.id === appointment.postId ? { ...post, startsAt: newSchedule.startsAt, endsAt: newSchedule.endsAt, time: newSchedule.dateTime, location: newSchedule.location } : post));
     setNotifications((prev) => [
       {
         id: 'notif-' + Date.now(),
@@ -649,24 +670,40 @@ export default function App() {
 
   // Phase 5: Mutual Blind Review Submit & Sugar Settling
   const handleOpenReview = () => {
+    if (!completionAvailability(appointment, currentUser?.id).canReview) return;
+    setReviewAppointmentId(appointment.id);
     setIsReviewModalOpen(true);
   };
 
+  const handleCompleteAppointment = () => {
+    if (!completionAvailability(appointment, currentUser?.id).canComplete) return;
+    setAppointment(prev => ({ ...prev, status: '동행 완료', dDay: '완료됨' }));
+  };
+
   const handleSubmitReview = (reviewPayload: { rating: number; badges: string[]; comment: string }) => {
+    const key = reviewKey(reviewAppointment.id);
+    if (!completionAvailability(reviewAppointment, currentUser?.id).canReview || submissionLocks.current.has(key)) return false;
+    submissionLocks.current.add(key);
+    setSubmittedReviews(prev => ({ ...prev, [key]: reviewPayload }));
     setNotifications((prev) => [
       {
         id: 'notif-' + Date.now(),
         title: '🔒 블라인드 평가 제출 완료',
-        description: `${appointment.partnerName}님과의 동행 평가가 안전하게 잠겼습니다. 상대방이 제출하면 동시 해제됩니다.`,
+        description: `${reviewAppointment.partnerName}님과의 동행 평가를 제출했습니다.`,
         time: '방금',
         read: false,
         type: 'matching',
       },
       ...prev,
     ]);
+    return true;
   };
 
   const handleSettleSugar = (delta: number, partnerReview: ReviewItem) => {
+    const key = reviewKey(partnerReview.appointmentId);
+    const target = appointments.find(item => item.id === partnerReview.appointmentId);
+    if (!target || !completionAvailability(target, currentUser?.id).canReview || !submissionLocks.current.has(key) || settlementLocks.current.has(key)) return false;
+    settlementLocks.current.add(key);
     // 1. 당도 정수형 가산
     setCurrentUser((prev) => {
       if (!prev) return null;
@@ -676,13 +713,6 @@ export default function App() {
         sugarContent: nextSugar,
       };
     });
-
-    // 2. 동행 상태 완료로 전환
-    setAppointment((prev) => ({
-      ...prev,
-      status: '동행 완료',
-      dDay: '완료됨',
-    }));
 
     // 3. 후기 리스트에 추가
     setReviews((prev) => [partnerReview, ...prev]);
@@ -699,6 +729,7 @@ export default function App() {
       },
       ...prev,
     ]);
+    return true;
   };
 
   const handleAuthSuccess = (newUser: CurrentUser) => {
@@ -769,6 +800,8 @@ export default function App() {
       status: '매칭완료',
       postId: post.id,
       scheduledAt: post.startsAt,
+      endsAt: post.endsAt,
+      participantIds: [currentUser!.id, post.authorId || ''],
       dDay: 'D-2',
       appointmentBadge: 'PRO 1:1 확정',
       title: post.title,
@@ -799,6 +832,12 @@ export default function App() {
       },
       ...prev,
     ]);
+  };
+
+  const completionActions = {
+    availability: completion, isCompleted: appointment.status === '동행 완료',
+    hasSubmittedReview: Boolean(submittedReviews[reviewKey(appointment.id)]),
+    onComplete: handleCompleteAppointment, onOpenReview: handleOpenReview,
   };
 
   return (
@@ -856,7 +895,7 @@ export default function App() {
               onOpenVoiceCall={() => setIsVoiceCallOpen(true)}
               onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
               onOpenReport={() => setIsReportOpen(true)}
-              onOpenReview={handleOpenReview}
+              completionActions={completionActions}
             />
           </div>
         )}
@@ -903,7 +942,7 @@ export default function App() {
           onOpenSafetyRules={() => setIsSafetyRulesOpen(true)}
           onOpenReport={() => setIsReportOpen(true)}
           onSendArrivalNotice={handleSendArrivalNotice}
-          onOpenReview={handleOpenReview}
+          completionActions={completionActions}
         />
 
         {/* Modal: 이벤트 상세 & 불꽃축제 동행 모임 */}
@@ -914,7 +953,7 @@ export default function App() {
           isOpen={!!selectedEvent}
           onClose={() => setSelectedEvent(null)}
           relatedPosts={activeMeetupPosts.filter((p) => p.eventId && p.eventId === selectedEvent?.id)}
-          onJoinMeetup={handleStartJoinRequest}
+          onSelectPost={setSelectedPostForDetail}
         />
 
         {/* Modal: 카테고리별 동행 리스트 */}
@@ -951,6 +990,7 @@ export default function App() {
           onEditPost={handleEditPost}
           onClosePost={handleClosePost}
           onDeletePost={handleDeletePost}
+          canViewPrivateLocation={Boolean(currentUser && appointments.some(item => item.postId === selectedPostForDetail?.id && item.participantIds?.includes(currentUser.id) && ['매칭 확정', '매칭완료', '동행 완료'].includes(item.status)))}
         />
 
         {/* Phase 3 Modal: 1:1 동행 신청서 모달 (신청자) */}
@@ -1020,13 +1060,16 @@ export default function App() {
         />
 
         {/* Phase 5 Modal: 상호 블라인드 평가 및 실시간 당도 정산 모달 */}
-        <ReviewModal
+        {isReviewModalOpen && <ReviewModal
+          key={reviewAppointment.id}
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
-          appointment={appointment}
+          appointment={reviewAppointment}
+          existingSubmission={submittedReviews[reviewKey(reviewAppointment.id)]}
+          hasSettled={settlementLocks.current.has(reviewKey(reviewAppointment.id))}
           onSubmitReview={handleSubmitReview}
           onSettleSugar={handleSettleSugar}
-        />
+        />}
 
         {/* Phase 6 Modal: PRO 1:1 안심 에스크로 결제 모달 */}
         <EscrowPaymentModal

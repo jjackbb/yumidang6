@@ -6,12 +6,14 @@ interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: Appointment;
+  existingSubmission?: { rating: number; badges: string[]; comment: string };
+  hasSettled: boolean;
   onSubmitReview: (review: {
     rating: number;
     badges: string[];
     comment: string;
-  }) => void;
-  onSettleSugar: (delta: number, partnerReview: ReviewItem) => void;
+  }) => boolean;
+  onSettleSugar: (delta: number, partnerReview: ReviewItem) => boolean;
 }
 
 const PRAISE_BADGES = [
@@ -27,16 +29,15 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   isOpen,
   onClose,
   appointment,
+  existingSubmission,
+  hasSettled,
   onSubmitReview,
   onSettleSugar,
 }) => {
-  const [rating, setRating] = useState(5);
-  const [selectedBadges, setSelectedBadges] = useState<string[]>([
-    '시간 약속을 칼같이 지켜요',
-    '친절하고 배려심이 넘쳐요',
-  ]);
-  const [comment, setComment] = useState('시간도 정확히 맞춰오시고 대화도 너무 편안해서 힐링되는 1:1 동행이었습니다!');
-  const [stage, setStage] = useState<'writing' | 'blind_waiting' | 'settled'>('writing');
+  const [rating, setRating] = useState(existingSubmission?.rating || 5);
+  const [selectedBadges, setSelectedBadges] = useState<string[]>(existingSubmission?.badges || []);
+  const [comment, setComment] = useState(existingSubmission?.comment || '');
+  const [stage, setStage] = useState<'writing' | 'blind_waiting' | 'settled'>(hasSettled ? 'settled' : existingSubmission ? 'blind_waiting' : 'writing');
 
   if (!isOpen) return null;
 
@@ -48,24 +49,21 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmitReview({
+    if (!onSubmitReview({
       rating,
       badges: selectedBadges,
       comment: comment.trim(),
-    });
+    })) return;
 
     // 1단계: 블라인드 대기 상태로 전환
     setStage('blind_waiting');
 
-    // 2단계: 2초 후 파트너의 맞평가 자동 도착 시뮬레이션 (동시 해제 및 당도 정산)
-    setTimeout(() => {
-      handlePartnerComplete();
-    }, 2200);
+    // An explicit demo action simulates the partner; no automatic second submission.
   };
 
   const handlePartnerComplete = () => {
     const partnerReview: ReviewItem = {
-      id: 'rev-' + Date.now(),
+      id: 'rev-demo-' + appointment.id,
       appointmentId: appointment.id,
       appointmentTitle: appointment.title,
       reviewerName: appointment.partnerName,
@@ -78,7 +76,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       createdAt: '방금',
     };
 
-    onSettleSugar(2, partnerReview); // 정수형 당도 +2 🍯 상승
+    if (stage !== 'blind_waiting' || !onSettleSugar(2, partnerReview)) return;
     setStage('settled');
   };
 
@@ -110,6 +108,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             </div>
           </div>
           <button
+            aria-label="평가창 닫기"
             onClick={onClose}
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
@@ -135,7 +134,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                       1:1 파트너
                     </span>
                   </div>
-                  <span className="text-xs text-gray-400">당도 99 🍯 • {appointment.title}</span>
+                  <span className="text-xs text-gray-400">{appointment.title}</span>
                 </div>
               </div>
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl">
@@ -160,6 +159,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   <button
                     type="button"
                     key={s}
+                    aria-label={`${s}점`}
                     onClick={() => setRating(s)}
                     className="p-1 hover:scale-115 active:scale-95 transition-transform"
                   >
@@ -276,13 +276,14 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             </div>
 
             {/* Quick simulate unlock button */}
+            <div className="p-3 bg-gray-50 rounded-xl text-left text-xs"><p className="font-bold">내가 남긴 평가 · {rating}점</p><p className="mt-1 text-gray-600 whitespace-pre-wrap">{comment}</p></div>
             <div className="pt-2">
               <button
                 type="button"
                 onClick={handlePartnerComplete}
                 className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors"
               >
-                상대방 제출 즉시 시뮬레이션 (테스트용)
+                상대방 평가 도착 시연 (테스트용)
               </button>
             </div>
           </div>
@@ -314,8 +315,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   🍯
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-gray-900 block">당도 정산 보너스</span>
-                  <span className="text-[11px] text-gray-500">매너 만점 동행 완료 보상</span>
+                  <span className="text-xs font-bold text-gray-900 block">당도 반영 예시</span>
+                  <span className="text-[11px] text-gray-500">상대방 평가를 가정한 시연 결과</span>
                 </div>
               </div>
               <div className="text-right">

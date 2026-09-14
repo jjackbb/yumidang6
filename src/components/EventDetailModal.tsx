@@ -9,7 +9,7 @@ interface EventDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   relatedPosts: MeetupPost[];
-  onJoinMeetup: (post: MeetupPost) => void;
+  onSelectPost: (post: MeetupPost) => void;
 }
 
 export const EventDetailModal: React.FC<EventDetailModalProps> = ({
@@ -17,7 +17,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   isOpen,
   onClose,
   relatedPosts,
-  onJoinMeetup,
+  onSelectPost,
 }) => {
   if (!isOpen || !event) return null;
 
@@ -110,9 +110,11 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
               <div className="space-y-3">
                 {relatedPosts.length === 0 && <p className="bg-white rounded-2xl p-5 text-xs text-gray-500">{status === 'ended' ? '종료된 행사입니다.' : '아직 이 행사에 등록된 동행이 없어요.'}</p>}
                 {relatedPosts.map((post) => (
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => onSelectPost(post)}
                     key={post.id}
-                    className="p-5 rounded-[24px] bg-white hover:shadow-md transition-all shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-3"
+                    className="w-full text-left p-5 rounded-[24px] bg-white hover:shadow-md transition-all shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -142,22 +144,12 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                           className="w-7 h-7 rounded-full object-cover"
                         />
                         <span className="font-bold text-gray-800">{post.author}</span>
-                        <span className="text-[#6c2cf5] font-semibold text-[11px]">당도 99 🍯</span>
+
                       </div>
 
-                      <button
-                        onClick={() => onJoinMeetup(post)}
-                        disabled={post.currentMembers >= 2 || status === 'ended'}
-                        className={`px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-xs ${
-                          post.currentMembers >= 2
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-[#6c2cf5] text-white hover:bg-[#5820d8] active:scale-95'
-                        }`}
-                      >
-                        {post.currentMembers >= 2 ? '마감됨' : '동행 신청하기'}
-                      </button>
+                      <span className="px-3 py-2 rounded-xl font-bold text-xs bg-[#f0edff] text-[#6c2cf5]">공고 자세히 보기</span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

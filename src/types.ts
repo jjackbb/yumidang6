@@ -44,6 +44,8 @@ export interface Appointment {
   id: string;
   postId?: string;
   scheduledAt?: string;
+  endsAt?: string;
+  participantIds?: string[];
   status: string;
   dDay: string;
   appointmentBadge: string;
@@ -86,6 +88,8 @@ export interface CategoryItem {
 export interface MeetupPost {
   id: string;
   startsAt?: string;
+  endsAt?: string;
+  description?: string;
   eventId?: string;
   category: string;
   title: string;
@@ -104,6 +108,22 @@ export interface MeetupPost {
   imageUrl?: string;
   companionType?: CompanionType;
   proDetails?: ProDetails;
+}
+
+export interface PublicUserProfile {
+  id: string;
+  displayName: string;
+  avatar: string;
+  bio: string;
+  neighborhood: string;
+  ageGroup: string;
+  hobbies: string[];
+  traits: string[];
+  sugarContent: number | null;
+  isPhoneVerified: boolean;
+  isKycVerified: boolean;
+  isSample: boolean;
+  reviews: { id: string; author: string; rating: number; comment: string }[];
 }
 
 export interface NotificationItem {
@@ -155,6 +175,8 @@ export interface JoinRequest {
 export interface ScheduleProposal {
   id: string;
   newDateTime: string;
+  startsAt?: string;
+  endsAt?: string;
   newLocation: string;
   status: 'pending' | 'accepted' | 'rejected';
   proposerName: string;

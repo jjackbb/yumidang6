@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Clock, MapPin, Share2, Calendar, MessageCircle, Star, Navigation, ShieldCheck, ShieldAlert, BellRing } from 'lucide-react';
 import { Appointment } from '../types';
+import { CompletionActions, CompletionActionsProps } from './CompletionActions';
 
 interface DashboardModalProps {
   appointment: Appointment | null;
@@ -10,7 +11,7 @@ interface DashboardModalProps {
   onOpenSafetyRules?: () => void;
   onOpenReport?: () => void;
   onSendArrivalNotice?: () => void;
-  onOpenReview?: () => void;
+  completionActions: CompletionActionsProps;
 }
 
 export const DashboardModal: React.FC<DashboardModalProps> = ({
@@ -21,7 +22,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
   onOpenSafetyRules,
   onOpenReport,
   onSendArrivalNotice,
-  onOpenReview,
+  completionActions,
 }) => {
   if (!isOpen || !appointment) return null;
 
@@ -38,6 +39,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             <h3 className="text-[17px] font-bold text-gray-900">참여 대시보드</h3>
           </div>
           <button
+            aria-label="참여 대시보드 닫기"
             onClick={onClose}
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
@@ -54,7 +56,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                 {appointment.status} (1:1 확정)
               </span>
               <p className="text-[18px] font-extrabold text-gray-900 mt-1.5">
-                약속까지 단 {appointment.dDay} 남았어요!
+                {appointment.status === '동행 완료' ? '동행을 완료했어요' : completionActions.availability.canComplete ? '동행 완료를 확인해 주세요' : '함께할 약속을 확인해 주세요'}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-white shadow-xs flex items-center justify-center text-[#6c2cf5]">
@@ -159,19 +161,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
 
           {/* Action Buttons */}
           <div className="space-y-2 pt-2 pb-2">
-            {/* Phase 5: Meetup Completion & Mutual Review CTA */}
-            {onOpenReview && (
-              <button
-                onClick={() => {
-                  onClose();
-                  onOpenReview();
-                }}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#6c2cf5] to-[#8b5cf6] text-white rounded-[16px] font-bold text-[15px] flex items-center justify-center gap-2 shadow-md shadow-purple-500/25 active:scale-98 transition-all"
-              >
-                <Star className="w-5 h-5 fill-amber-300 text-amber-300" />
-                <span>동행이 잘 끝났어요 (블라인드 평가 & 당도 정산)</span>
-              </button>
-            )}
+            <CompletionActions {...completionActions} />
 
             <button
               onClick={() => {

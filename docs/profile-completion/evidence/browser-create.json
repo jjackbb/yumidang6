@@ -1,0 +1,11 @@
+{
+  "url": "http://127.0.0.1:4176",
+  "mode": "Browser checks on frontend simulation; Supabase intercepted",
+  "cases": [
+    {
+      "name": "create/edit description + time range rejects reversed end and preserves own profile",
+      "status": "PASS"
+    }
+  ],
+  "errors": []
+}

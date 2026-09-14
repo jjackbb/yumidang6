@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   MapPin,
@@ -12,8 +12,12 @@ import {
   Trash2,
   AlertCircle,
   MessageCircle,
+  ChevronRight,
 } from 'lucide-react';
 import { MeetupPost, CurrentUser } from '../types';
+import { publicProfileForPost } from '../data/publicProfiles';
+import { UserProfileModal } from './UserProfileModal';
+import { formatMeetupRange } from '../utils/meetupLifecycle';
 
 interface PostDetailModalProps {
   post: MeetupPost | null;
@@ -25,6 +29,7 @@ interface PostDetailModalProps {
   onEditPost: (post: MeetupPost) => void;
   onClosePost: (postId: string) => void;
   onDeletePost: (postId: string) => void;
+  canViewPrivateLocation?: boolean;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -37,8 +42,12 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onEditPost,
   onClosePost,
   onDeletePost,
+  canViewPrivateLocation = false,
 }) => {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  useEffect(() => setIsProfileOpen(false), [post?.id, isOpen]);
   if (!isOpen || !post) return null;
+  const profile = publicProfileForPost(post, currentUser);
 
   const isHost = Boolean(
     currentUser && currentUser.id === post.authorId
@@ -48,7 +57,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const isExpired = post.status === 'expired';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <><div role="dialog" aria-modal="true" aria-label="동행 공고 상세" inert={isProfileOpen} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -80,6 +89,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             )}
           </div>
           <button
+            aria-label="공고 상세 닫기"
             onClick={onClose}
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
@@ -95,31 +105,31 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
               {post.title}
             </h3>
 
-            <div className="flex items-center justify-between mt-3 pt-3">
-              <div className="flex items-center gap-2.5">
+            <button type="button" onClick={() => setIsProfileOpen(true)} aria-label={`${profile.displayName}님의 상세 프로필 보기`} className="w-full text-left flex items-center justify-between gap-2 mt-3 p-3 rounded-2xl bg-[#f8f9fc] hover:bg-purple-50 transition-colors focus-visible:outline-2 focus-visible:outline-purple-500">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <img
-                  src={post.avatar}
+                  src={profile.avatar}
                   alt={post.author}
-                  className="w-10 h-10 rounded-full object-cover shadow-2xs"
+                  className="w-10 h-10 shrink-0 rounded-full object-cover shadow-2xs"
                 />
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm text-gray-900">{post.author}</span>
+                    <span className="font-bold text-sm text-gray-900">{profile.displayName}</span>
                     <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-1.5 py-0.5 rounded">
                       호스트
                     </span>
                   </div>
-                  <span className="text-xs text-gray-400">당도 99 🍯 • 인증회원</span>
+                  <span className="text-xs text-gray-500">{profile.sugarContent === null ? '당도 정보 없음' : `당도 ${profile.sugarContent} 🍯`}{profile.isPhoneVerified ? ' · 휴대폰 인증' : ''}</span>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-1">{profile.bio || '자세한 프로필을 확인해 보세요.'}</p>
                 </div>
               </div>
 
-              <div className="text-right">
-                <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-xl">
-                  1:1 동행
-                </span>
-              </div>
-            </div>
+              <span className="flex items-center shrink-0 text-[11px] text-[#6c2cf5] font-bold">프로필 보기<ChevronRight size={15} /></span>
+            </button>
+            {profile.isSample && <p className="text-[10px] text-gray-400 mt-1.5">프로토타입 예시 프로필</p>}
           </div>
+
+          <section className="space-y-2"><h4 className="text-xs font-bold text-gray-700">동행 소개</h4><p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{post.description || '아직 등록된 상세 소개가 없어요.'}</p></section>
 
           {/* Phase 6: PRO Specialized Offer Card */}
           {post.companionType === 'pro' && post.proDetails && (
@@ -176,7 +186,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
           <div className="p-3.5 bg-[#f8f9fc] rounded-2xl space-y-2 text-xs">
             <div className="flex items-center gap-2 text-gray-700">
               <Calendar className="w-4 h-4 text-[#6c2cf5] flex-shrink-0" />
-              <span className="font-semibold">{post.time}</span>
+              <span className="font-semibold">{formatMeetupRange(post.startsAt, post.endsAt, post.time)}</span>
             </div>
             <div className="flex items-center gap-2 text-gray-700">
               <MapPin className="w-4 h-4 text-[#6c2cf5] flex-shrink-0" />
@@ -192,7 +202,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
               상세 만남 장소
             </label>
 
-            {isHost || isClosed ? (
+            {isHost || canViewPrivateLocation ? (
               <div className="p-3.5 bg-[#f5f3ff] rounded-2xl space-y-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-[#6c2cf5]">
                   <CheckCircle2 className="w-4 h-4 text-[#6c2cf5]" />
@@ -327,6 +337,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>{isProfileOpen && <UserProfileModal profile={profile} onClose={() => setIsProfileOpen(false)} />}</>
   );
 };

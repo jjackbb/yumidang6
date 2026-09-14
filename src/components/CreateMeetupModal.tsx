@@ -1,7 +1,8 @@
 import { appointmentStart, demoSchedule, koreaDateKey } from '../utils/calendar';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { X, Calendar, MapPin, Lock, Info, Sparkles, ShieldCheck, AlertCircle } from 'lucide-react';
 import { MeetupPost, CurrentUser } from '../types';
+import { formatClock, formatMeetupRange, isValidMeetupRange } from '../utils/meetupLifecycle';
 
 interface CreateMeetupModalProps {
   isOpen: boolean;
@@ -24,6 +25,10 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
   const [category, setCategory] = useState('식사');
   const [date, setDate] = useState(koreaDateKey(new Date(demoSchedule(1))));
   const [time, setTime] = useState('18:00');
+  const [endDate, setEndDate] = useState(date);
+  const [endTime, setEndTime] = useState('19:00');
+  const [description, setDescription] = useState('');
+  const [scheduleError, setScheduleError] = useState('');
   const [location, setLocation] = useState('서울 강남구 대치동');
   const [publicLocation, setPublicLocation] = useState('대치역 3번 출구 앞');
   const [secretLocation, setSecretLocation] = useState('르브런치 2층 예약석');
@@ -51,15 +56,20 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
     setCompanionType('pro');
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    setScheduleError('');
     if (editPost) {
       setTitle(editPost.title);
       setCategory(editPost.category);
+      setDescription(editPost.description || '');
       const start = appointmentStart({ scheduledAt: editPost.startsAt, dateTime: editPost.time });
       if (Number.isFinite(start.getTime())) {
         setDate(koreaDateKey(start));
         setTime(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' }).format(start));
       }
+      const hasEnd = editPost.endsAt && Number.isFinite(Date.parse(editPost.endsAt));
+      setEndDate(hasEnd ? koreaDateKey(new Date(editPost.endsAt!)) : '');
+      setEndTime(hasEnd ? formatClock(editPost.endsAt!) : '');
       setLocation(editPost.location);
       setPublicLocation(editPost.publicLocation || '');
       setSecretLocation(editPost.secretLocation || '');
@@ -78,6 +88,9 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
       setCategory('식사');
       setDate(koreaDateKey(new Date(demoSchedule(1))));
       setTime('18:00');
+      setEndDate(koreaDateKey(new Date(demoSchedule(1))));
+      setEndTime('19:00');
+      setDescription('');
       setLocation('서울 강남구 대치동');
       setPublicLocation('대치역 3번 출구 앞');
       setSecretLocation('르브런치 2층 예약석');
@@ -99,6 +112,15 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    const startValue = `${date}T${time}:00+09:00`;
+    const endValue = `${endDate}T${endTime}:00+09:00`;
+    if (!isValidMeetupRange(startValue, endValue)) {
+      setScheduleError('종료 시각은 시작 시각보다 늦어야 해요. 다음 날 끝나면 종료 날짜도 바꿔 주세요.');
+      return;
+    }
+    const startsAt = new Date(startValue).toISOString();
+    const endsAt = new Date(endValue).toISOString();
+    const schedule = { startsAt, endsAt, time: formatMeetupRange(startsAt, endsAt), description: description.trim() };
 
     const parsedTags = tagInput
       ? tagInput
@@ -124,8 +146,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
         ...editPost,
         title: title.trim(),
         category,
-        time: `${date} ${time}`,
-        startsAt: new Date(`${date}T${time}:00+09:00`).toISOString(),
+        ...schedule,
         location,
         publicLocation: publicLocation.trim(),
         secretLocation: secretLocation.trim(),
@@ -145,8 +166,7 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
         avatar: currentUser
           ? currentUser.avatar
           : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-        time: `${date} ${time}`,
-        startsAt: new Date(`${date}T${time}:00+09:00`).toISOString(),
+        ...schedule,
         location,
         publicLocation: publicLocation.trim(),
         secretLocation: secretLocation.trim(),
@@ -364,30 +384,45 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
           </div>
 
           {/* Date & Time */}
+          <div>
+            <label htmlFor="meetup-description" className="block text-xs font-bold text-gray-600 mb-1.5">동행 상세 소개</label>
+            <textarea id="meetup-description" required rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="무엇을 함께할지, 활동 순서와 준비물 등을 알려주세요." className="w-full p-3 rounded-xl bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" />
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                약속 날짜
+                시작 날짜
               </label>
               <input
                 type="date"
+                aria-label="시작 날짜"
+                required
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => { if (endDate === date) setEndDate(e.target.value); setDate(e.target.value); setScheduleError(''); }}
                 className="w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                약속 시간
+                시작 시각
               </label>
               <input
                 type="time"
+                aria-label="시작 시각"
+                required
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
               />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div><label htmlFor="meetup-end-date" className="block text-xs font-bold text-gray-600 mb-1.5">종료 날짜</label><input id="meetup-end-date" type="date" required min={date} value={endDate} onChange={e => { setEndDate(e.target.value); setScheduleError(''); }} className="w-full px-3 py-2 rounded-xl bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-purple-200" /></div>
+            <div><label htmlFor="meetup-end-time" className="block text-xs font-bold text-gray-600 mb-1.5">종료 시각</label><input id="meetup-end-time" type="time" required value={endTime} onChange={e => { setEndTime(e.target.value); setScheduleError(''); }} className="w-full px-3 py-2 rounded-xl bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-purple-200" /></div>
+          </div>
+          <p className="text-xs text-gray-500">공고에 정한 종료 시각부터 동행 완료·평가가 가능해요.</p>
+          {scheduleError && <p role="alert" className="text-xs text-red-600">{scheduleError}</p>}
 
           {/* Public Location (General Area) */}
           <div>
