@@ -505,6 +505,7 @@ export type Database = {
           pro_details: Json | null
           public_location: string
           recruitment_ends_at: string
+          region: string
           revision: number
           starts_at: string
           status: string
@@ -528,6 +529,7 @@ export type Database = {
           pro_details?: Json | null
           public_location: string
           recruitment_ends_at: string
+          region?: string
           revision?: number
           starts_at: string
           status?: string
@@ -551,6 +553,7 @@ export type Database = {
           pro_details?: Json | null
           public_location?: string
           recruitment_ends_at?: string
+          region?: string
           revision?: number
           starts_at?: string
           status?: string
@@ -934,7 +937,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      app_command: {
+        Args: { p_action: string; p_actor: string; p_data?: Json }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
@@ -1067,3 +1073,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

@@ -1,3 +1,4 @@
+alter table public.meetup_posts add column if not exists region text not null default '';
 -- Service-only transaction API. The Edge Function validates JWT and supplies actor.
 -- SECURITY INVOKER: no privilege escalation; anon/authenticated cannot execute.
 create or replace function public.app_command(p_actor uuid, p_action text, p_data jsonb default '{}') returns jsonb
@@ -36,8 +37,8 @@ begin
   if coalesce(p_data->>'companionType','free')<>'free' then raise exception '유료 동행은 아직 준비 중이에요.'; end if;
   if p_action='create_post' then
    v_id:=gen_random_uuid();
-   insert into public.meetup_posts(id,author_id,category_id,title,description,starts_at,ends_at,recruitment_ends_at,public_location,partner_gender,partner_preferences,tags,image_url)
-    values(v_id,p_actor,v_category,p_data->>'title',coalesce(p_data->>'description',''),v_start,v_end,v_deadline,p_data->>'publicLocation',coalesce(p_data->>'partnerGender','any'),coalesce(p_data->>'partnerPreferences',''),array(select jsonb_array_elements_text(coalesce(p_data->'tags','[]'))),p_data->>'imageUrl');
+   insert into public.meetup_posts(id,author_id,category_id,title,description,starts_at,ends_at,recruitment_ends_at,public_location,partner_gender,partner_preferences,tags,image_url,region,event_id)
+    values(v_id,p_actor,v_category,p_data->>'title',coalesce(p_data->>'description',''),v_start,v_end,v_deadline,p_data->>'publicLocation',coalesce(p_data->>'partnerGender','any'),coalesce(p_data->>'partnerPreferences',''),array(select jsonb_array_elements_text(coalesce(p_data->'tags','[]'))),p_data->>'imageUrl',coalesce(p_data->>'location',''),(select id from public.events where external_id=p_data->>'eventId' and source_name='prototype' limit 1));
    insert into public.meetup_post_locations(post_id,secret_location) values(v_id,p_data->>'secretLocation');
    insert into public.notifications(recipient_id,type,title,description,post_id)
      select owner_id,'new_post','저장한 동행자의 새 공고',p_data->>'title',v_id from public.favorite_friends f where target_id=p_actor and notify_new_posts
@@ -47,7 +48,7 @@ begin
    if p.id is null or p.author_id<>p_actor or p.status<>'recruiting' then raise exception '모집 중인 본인 공고만 수정할 수 있어요.'; end if;
    if p.revision<>coalesce((p_data->>'revision')::int,p.revision) then raise exception '다른 곳에서 공고가 변경됐어요. 새로고침해 주세요.'; end if;
    v_id:=p.id;
-   update public.meetup_posts set category_id=v_category,title=p_data->>'title',description=coalesce(p_data->>'description',''),starts_at=v_start,ends_at=v_end,recruitment_ends_at=v_deadline,public_location=p_data->>'publicLocation',partner_gender=coalesce(p_data->>'partnerGender','any'),partner_preferences=coalesce(p_data->>'partnerPreferences',''),tags=array(select jsonb_array_elements_text(coalesce(p_data->'tags','[]'))),image_url=p_data->>'imageUrl',revision=revision+1 where id=v_id;
+   update public.meetup_posts set category_id=v_category,title=p_data->>'title',description=coalesce(p_data->>'description',''),starts_at=v_start,ends_at=v_end,recruitment_ends_at=v_deadline,public_location=p_data->>'publicLocation',partner_gender=coalesce(p_data->>'partnerGender','any'),partner_preferences=coalesce(p_data->>'partnerPreferences',''),tags=array(select jsonb_array_elements_text(coalesce(p_data->'tags','[]'))),image_url=p_data->>'imageUrl',region=coalesce(p_data->>'location',''),revision=revision+1 where id=v_id;
    update public.meetup_post_locations set secret_location=p_data->>'secretLocation' where post_id=v_id;
    update public.join_requests set status='reconfirming' where post_id=v_id and status in ('pending','reconfirming');
   end if;
@@ -148,6 +149,7 @@ begin
      if s.starts_at<=now() then raise exception '이미 지난 시간으로 변경할 수 없어요.'; end if;
      if exists(select 1 from public.appointments where id<>a.id and status='confirmed' and (host_id in (a.host_id,a.guest_id) or guest_id in (a.host_id,a.guest_id)) and starts_at<s.ends_at and ends_at>s.starts_at) then raise exception '다른 약속과 시간이 겹쳐요.'; end if;
      update public.appointments set starts_at=s.starts_at,ends_at=s.ends_at where id=a.id;
+     update public.meetup_posts set starts_at=s.starts_at,ends_at=s.ends_at,recruitment_ends_at=least(recruitment_ends_at,s.starts_at) where id=a.post_id;
      update public.meetup_post_locations set secret_location=s.proposed_location where post_id=a.post_id;
     end if;
     update public.schedule_proposals set status=case when (p_data->>'accepted')::boolean then 'accepted' else 'rejected' end,responded_at=now() where id=s.id;

@@ -889,7 +889,7 @@ export default function App() {
     ]);
   };
 
-  const commitProfile = (patch: ProfilePatch) => { if (!prototypeAuth) { void cloud.run('profile', { ...patch }); return; } if (currentUser) setCurrentUser({ ...currentUser, ...patch }); };
+  const commitProfile = (patch: ProfilePatch) => { if (!prototypeAuth) return cloud.run('profile', { ...patch }); if (currentUser) setCurrentUser({ ...currentUser, ...patch }); };
   const selfMember = (user: CurrentUser): ChatMember => ({ id: user.id, displayName: user.maskedName, avatar: user.avatar });
   const toggleFavorite = (targetId: string) => {
     if (!prototypeAuth) { void cloud.run('favorite', { targetId, saved: !isSavedBy(currentUser?.id || '', targetId, favorites) }); return; }
@@ -1094,7 +1094,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f2f4f8] flex justify-center selection:bg-purple-100">
       {/* Mobile container simulating the exact mobile app interface */}
-      <main className="w-full max-w-[440px] min-h-screen bg-white shadow-xl relative flex flex-col">
+      <main style={{ '--service-banner-h': prototypeAuth ? '0px' : '48px' } as React.CSSProperties} className="w-full max-w-[440px] min-h-screen bg-white shadow-xl relative flex flex-col">
         {demoMode && <DemoControlPanel
           users={users} activeUserId={currentUser?.id || null} now={now} settings={demoSettings}
           onSwitchUser={switchDemoUser}
@@ -1113,7 +1113,7 @@ export default function App() {
         </div>}
         {prototypeAuth && !demoMode && <div role="status" className="bg-amber-50 px-4 py-2 text-xs text-amber-950 border-b border-amber-100">프로토타입 · 테스트 인증번호 123456 · 실제 문자 발송 없음</div>}
         {/* Top Header */}
-        {!prototypeAuth && <div className="bg-purple-50 px-4 py-2 text-xs text-purple-900">공용 DB 테스트 · 테스트 번호 01000000001~3 / 코드 123456 · 개인정보를 입력하지 마세요.</div>}
+        {!prototypeAuth && <div className="h-12 shrink-0 flex items-center bg-purple-50 px-4 py-2 text-xs text-purple-900">공용 DB 테스트 · 테스트 번호 01000000001~3 / 코드 123456 · 개인정보를 입력하지 마세요.</div>}
         {!prototypeAuth && (cloud.busy || cloud.error) && <div role={cloud.error ? 'alert' : 'status'} className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] max-w-md rounded-xl bg-white border shadow-lg px-4 py-3 text-sm">{cloud.error || '서버에 저장 중…'}{cloud.error && <button className="ml-3 underline" onClick={() => void cloud.refresh()}>다시 불러오기</button>}</div>}
         <Header
           unreadCount={unreadNotifCount}

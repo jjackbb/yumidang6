@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-09-15T07:24:56.144Z",
+  "base": "http://127.0.0.1:3023",
+  "cases": [
+    "account 1 login and Me",
+    "account 2 login and Me",
+    "post form saved to server",
+    "post survives reload",
+    "other account applies via UI",
+    "host accepts and opens existing room"
+  ],
+  "errors": [],
+  "postId": "a7b54a36-700f-44e2-ae6e-3761bf7e0e6c",
+  "title": "[화면 검증] 서버에 저장한 산책 1789457090773"
+}

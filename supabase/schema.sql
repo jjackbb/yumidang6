@@ -88,6 +88,7 @@ create table public.meetup_posts (
   ends_at timestamptz not null,
   recruitment_ends_at timestamptz not null,
   public_location text not null check (btrim(public_location) <> ''),
+  region text not null default '',
   partner_gender text not null default 'any' check (partner_gender in ('any','female','male')),
   partner_preferences text not null default '',
   tags text[] not null default '{}',

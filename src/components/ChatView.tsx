@@ -129,7 +129,7 @@ export function ChatView({
     <section
       aria-label="동행 대화방"
       data-active-room={room.id}
-      className="flex flex-col h-[calc(100dvh-126px-var(--demo-bar-h,0px))] min-h-[450px] text-left bg-[#f7f6fa]"
+      className="flex flex-col h-[calc(100dvh-126px-var(--demo-bar-h,0px)-var(--service-banner-h,0px))] min-h-0 text-left bg-[#f7f6fa]"
     >
       <header className="bg-white px-3 py-3 flex items-center gap-2 border-b border-gray-100 shrink-0">
         <button onClick={onBack} aria-label="채팅 목록으로" className="p-2">

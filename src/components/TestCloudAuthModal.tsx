@@ -8,7 +8,7 @@ export function TestCloudAuthModal({isOpen,onClose}:{isOpen:boolean;onClose:()=>
   const {data,error}=await supabase.functions.invoke('prototype-login',{body:{phone,code}});
   if(error){const info=await error.context?.json?.().catch(()=>null);throw new Error(info?.error || '로그인에 실패했어요.');}
   const result=await supabase.auth.setSession(data);if(result.error)throw result.error;
-  setCode('');onClose();
+  setCode(''); // The verified auth observer closes the modal and preserves the return route.
  }catch(e){setError(e instanceof Error?e.message:'다시 시도해 주세요.');}finally{setBusy(false);}}}>
  <h2 className="text-lg font-bold">DB 테스트 계정 로그인</h2>
  <p className="text-sm text-gray-600">공용 테스트 계정입니다. 실제 문자는 발송하지 않으며 개인정보는 입력하지 마세요. 작성한 테스트 데이터는 서버에 저장됩니다.</p>

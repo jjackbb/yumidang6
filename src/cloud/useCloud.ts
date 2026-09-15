@@ -8,7 +8,7 @@ export function useCloud(enabled: boolean, userId: string | null, authLoading: b
  const identity=userId || 'public';const current=useRef(identity);current.current=identity;
  const generation=useRef(0);const pending=useRef(false);const mutation=useRef(false);
  const refresh=useCallback(async()=>{
-  if(!enabled||authLoading||pending.current)return;
+  if(!enabled||authLoading||pending.current||mutation.current)return;
   const ticket=++generation.current;pending.current=true;
   try{
    if(userId)await command('sync');
@@ -32,9 +32,14 @@ export function useCloud(enabled: boolean, userId: string | null, authLoading: b
    const result=await command(action,data);
    if(current.current!==actor)return false;
    // Invalidate a poll that began before this write, then load the committed state.
-   generation.current++;const next=await loadCloudData(userId);
+   generation.current++;
+   try {
+    const next=await loadCloudData(userId);
+    if(current.current!==actor)return false;
+    applyRef.current(next);setLoadedFor(actor);
+   } catch { setError('저장은 완료됐지만 최신 목록을 불러오지 못했어요. 다시 불러오기를 눌러 주세요.'); }
    if(current.current!==actor)return false;
-   applyRef.current(next);setLoadedFor(actor);after?.(result);return true;
+   after?.(result);return true;
   }catch(e){if(current.current===actor)setError(e instanceof Error?e.message:'저장하지 못했어요.');return false;}
   finally{mutation.current=false;setBusy(false);}
  };

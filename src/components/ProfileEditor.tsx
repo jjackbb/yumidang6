@@ -23,7 +23,7 @@ interface ProfileEditorProps {
   /** Why setup opened, e.g. an apply attempt with an unfinished profile. */
   reason?: string;
   previewOf: (patch: ProfilePatch) => PublicUserProfile;
-  onCommit: (patch: ProfilePatch) => void;
+  onCommit: (patch: ProfilePatch) => void | boolean | Promise<boolean>;
   onClose: () => void;
   onDone: () => void;
 }
@@ -66,13 +66,13 @@ export function ProfileEditor({ user, mode, variant, showVariantLabel, initialSt
       setPhotoBusy(false);
     }
   };
-  const savePhoto = () => {
+  const savePhoto = async () => {
     if (!pendingPhoto) return;
-    onCommit({ avatar: pendingPhoto });
+    if (await onCommit({ avatar: pendingPhoto }) === false) { setError('사진을 저장하지 못했어요. 다시 시도해 주세요.'); return; }
     setPendingPhoto(null); setError(''); setNotice('사진을 저장했어요.');
   };
-  const deletePhoto = () => {
-    onCommit({ avatar: '' });
+  const deletePhoto = async () => {
+    if (await onCommit({ avatar: '' }) === false) { setError('사진을 삭제하지 못했어요.'); return; }
     setConfirmDelete(false); setNotice('사진을 삭제했어요. 프로필 사진은 필수라 새 사진을 등록해 주세요.');
   };
   const toggle = (list: string[], set: (next: string[]) => void, value: string, max: number, label: string) => {
@@ -85,13 +85,13 @@ export function ProfileEditor({ user, mode, variant, showVariantLabel, initialSt
   const checkPhoto = () => pendingPhoto ? '미리보기 중인 사진을 먼저 저장하거나 다시 선택해 주세요.' : hasPhoto ? null : '프로필 사진을 등록해 주세요. JPG·JPEG·PNG, 10MB 이하.';
   const checkInterests = () => !hobbies.length ? '취미를 1개 이상 골라 주세요.' : !traits.length ? '성향을 1개 이상 골라 주세요.' : null;
 
-  const next = () => {
+  const next = async () => {
     setNotice(''); setReasonText('');
     const problem = step === 'photo' ? checkPhoto() : step === 'interests' ? checkInterests() : step === 'bio' ? validateBio(bio) : null;
     if (problem) { setError(problem); return; }
     setError('');
-    if (step === 'interests') onCommit({ hobbies, traits, neighborhood });
-    if (step === 'bio') onCommit({ bio: bio.trim() });
+    if (step === 'interests' && await onCommit({ hobbies, traits, neighborhood }) === false) { setError('저장하지 못했어요. 다시 시도해 주세요.'); return; }
+    if (step === 'bio' && await onCommit({ bio: bio.trim() }) === false) { setError('저장하지 못했어요. 다시 시도해 주세요.'); return; }
     if (step === 'review') {
       const missing = missingProfileSteps({ ...user, ...draft, bio: bio.trim() });
       if (missing.length) { setStep(missing[0]); setError('아직 채우지 않은 필수 항목이 있어요.'); return; }
@@ -99,11 +99,11 @@ export function ProfileEditor({ user, mode, variant, showVariantLabel, initialSt
     }
     setStep(SETUP_STEPS[SETUP_STEPS.indexOf(step) + 1]);
   };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     setNotice('');
     const problem = checkPhoto() || checkInterests() || validateBio(bio);
     if (problem) { setError(problem); return; }
-    onCommit({ ...draft, bio: bio.trim() });
+    if (await onCommit({ ...draft, bio: bio.trim() }) === false) { setError('저장하지 못했어요. 다시 시도해 주세요.'); return; }
     setError(''); onDone();
   };
   const requestClose = () => { if (mode === 'edit' && dirty) setConfirmDiscard(true); else onClose(); };
@@ -128,7 +128,7 @@ export function ProfileEditor({ user, mode, variant, showVariantLabel, initialSt
       <p>사진을 삭제하면 새 사진을 등록할 때까지 프로필이 미완성으로 표시되고 신청·공고 작성이 제한돼요.</p>
       <div className="flex justify-end gap-2"><button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg bg-white border px-3 py-1.5">취소</button><button type="button" onClick={deletePhoto} className="rounded-lg bg-rose-600 text-white px-3 py-1.5 font-bold">삭제하기</button></div>
     </div>}
-    <p className="text-[11px] text-gray-400">JPG·JPEG·PNG, 10MB 이하. 원본은 저장하지 않고 작게 줄인 사진만 이 브라우저에 보관해요.</p>
+    <p className="text-[11px] text-gray-400">JPG·JPEG·PNG, 10MB 이하. 원본 대신 작게 줄인 사진을 프로필에 저장해요.</p>
   </section>;
 
   const chipGroup = (label: string, options: string[], list: string[], set: (next: string[]) => void, max: number) => <fieldset>
