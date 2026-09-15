@@ -25,7 +25,7 @@ export const trackFunnelEvent = async ({
   targetPostId,
   metadata = {},
 }: TrackFunnelParams) => {
-  if (externalServicesBlocked()) return;
+  if (externalServicesBlocked() || !supabase || import.meta.env.VITE_SUPABASE_ANALYTICS_ENABLED !== 'true') return;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id || null;

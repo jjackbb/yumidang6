@@ -1,0 +1,46 @@
+{
+  "project_id": "fiaxchvyywpqbwbcuzfz",
+  "scope": "OBSERVED_REAL read-only anonymous REST permissions; no tokens or personal data recorded",
+  "checks": [
+    {
+      "table": "categories",
+      "anonymous_http_status": 200,
+      "pass": true
+    },
+    {
+      "table": "profiles",
+      "anonymous_http_status": 200,
+      "pass": true
+    },
+    {
+      "table": "events",
+      "anonymous_http_status": 200,
+      "pass": true
+    },
+    {
+      "table": "meetup_posts",
+      "anonymous_http_status": 200,
+      "pass": true
+    },
+    {
+      "table": "appointment_reviews",
+      "anonymous_http_status": 200,
+      "pass": true
+    },
+    {
+      "table": "private_profiles",
+      "anonymous_http_status": 401,
+      "pass": true
+    },
+    {
+      "table": "chat_messages",
+      "anonymous_http_status": 401,
+      "pass": true
+    },
+    {
+      "table": "meetup_post_locations",
+      "anonymous_http_status": 401,
+      "pass": true
+    }
+  ]
+}

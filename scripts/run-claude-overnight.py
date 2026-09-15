@@ -361,6 +361,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--detach", action="store_true")
     args = parser.parse_args()
+    owner_path = DOC / "EXECUTION_OWNER.json"
+    if owner_path.exists():
+        owner = json.loads(owner_path.read_text()).get("owner")
+        if owner != "claude":
+            sys.exit("Claude 실행 중지: 현재 구현 담당은 GPT입니다. docs/overnight/GPT_HANDOFF.md를 확인하세요.")
     RUN.mkdir(mode=0o700, exist_ok=True)
     if args.detach:
         with (RUN / "runner.log").open("a") as output:

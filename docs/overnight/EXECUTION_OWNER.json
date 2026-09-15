@@ -1,0 +1,6 @@
+{
+  "owner": "gpt",
+  "changed_at": "2026-09-15T15:24:08+09:00",
+  "reason": "사용자 요청: Claude 사용량 한도로 GPT 인수인계. Supabase DB 작업은 다른 대화 세션에서 진행.",
+  "handoff": "docs/overnight/GPT_HANDOFF.md"
+}

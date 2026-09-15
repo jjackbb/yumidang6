@@ -1,4 +1,4 @@
-import type { ChatRoom, EventBannerItem, JoinRequest, MeetupPost, NotificationItem, ReviewItem } from '../types';
+import type { Appointment, ChatRoom, EventBannerItem, FavoriteFriend, Invitation, JoinRequest, MeetupPost, NotificationItem, ReviewItem } from '../types';
 import { demoSchedule, eventsStartingInWeek, koreaDateParts, weekOfMonth } from '../utils/calendar';
 import { formatMeetupRange } from '../utils/meetupLifecycle';
 import { sampleEventsForMonth } from './events';
@@ -78,6 +78,13 @@ export function createSeedData(): PrototypeData {
       currentMembers: post.status === 'closed' || matched ? 2 : 1,
     };
   }), ...eventLinkedPosts()];
+  posts.push({
+    id: 'post-minsu-invite', authorId: 'user-req-1', author: '김*수', avatar: usersAvatar('user-req-1'),
+    category: '산책', title: '저녁 서울숲 산책 같이 해요', description: '퇴근 뒤 한 시간 정도 천천히 걸으며 이야기 나눠요.',
+    startsAt: demoSchedule(4, 19), endsAt: demoSchedule(4, 20), recruitmentEndsAt: demoSchedule(3, 19),
+    time: formatMeetupRange(demoSchedule(4, 19), demoSchedule(4, 20)), location: '성동구 서울숲', publicLocation: '서울숲역 3번 출구', secretLocation: '서울숲 방문자센터 앞',
+    partnerGender: 'any', partnerPreferences: '편안한 속도로 산책하실 분', currentMembers: 1, maxMembers: 2, tags: ['산책', '저녁'], status: 'recruiting',
+  });
   const rooms: ChatRoom[] = [
     ...requests.flatMap(request => { const post = posts.find(item => item.id === request.postId); return post ? [createRequestRoom(request, post)] : []; }),
     ...mockAppointments.map(item => {
@@ -101,9 +108,32 @@ export function createSeedData(): PrototypeData {
     ...mockNotifications,
   ];
   const users = demoAccounts();
+  const historyAppointments: Appointment[] = [
+    { ...mockAppointments[1], id: 'appt-history-seojin', postId: undefined, title: '서*진 님과의 지난 전시 동행', participantIds: [DEMO_USER_ID, 'user-seojin'],
+      scheduledAt: demoSchedule(-5, 11), endsAt: demoSchedule(-5, 13), dateTime: formatMeetupRange(demoSchedule(-5, 11), demoSchedule(-5, 13)), status: '동행 완료', dDay: '완료됨' },
+    { ...mockAppointments[2], id: 'appt-history-hoon', postId: undefined, title: '강*훈 님과의 지난 산책 동행', participantIds: [DEMO_USER_ID, 'user-hoon'],
+      scheduledAt: demoSchedule(-8, 14), endsAt: demoSchedule(-8, 15), dateTime: formatMeetupRange(demoSchedule(-8, 14), demoSchedule(-8, 15)), status: '동행 완료', dDay: '완료됨' },
+  ];
+  const favorites: FavoriteFriend[] = [
+    { ownerId: DEMO_USER_ID, targetId: 'user-sol', savedAt: new Date(Date.now() - 86400000).toISOString(), notifyNewPosts: true },
+    { ownerId: DEMO_USER_ID, targetId: 'user-hoon', savedAt: new Date(Date.now() - 172800000).toISOString(), notifyNewPosts: true },
+  ];
+  const invitedAt = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3600000).toISOString();
+  const invitations: Invitation[] = [
+    { id: 'invite-saved-only', postId: 'post-5', senderId: 'user-sol', recipientId: DEMO_USER_ID, receivedAt: invitedAt(5), status: 'received' },
+    { id: 'invite-met-only', postId: 'post-3', senderId: 'user-seojin', recipientId: DEMO_USER_ID, receivedAt: invitedAt(3), status: 'received' },
+    { id: 'invite-both', postId: 'post-4', senderId: 'user-hoon', recipientId: DEMO_USER_ID, receivedAt: invitedAt(7), status: 'viewed' },
+    { id: 'invite-stranger', postId: posts.find(post => post.authorId === 'user-req-1')?.id || 'post-event-1', senderId: 'user-req-1', recipientId: DEMO_USER_ID, receivedAt: invitedAt(1), status: 'received' },
+  ];
+  notifications.unshift(...invitations.map((item): NotificationItem => ({
+    id: `notif-${item.id}`, recipientId: item.recipientId, createdAt: item.receivedAt,
+    title: `${users.find(user => user.id === item.senderId)?.maskedName || '회원'}님이 동행에 초대했어요`,
+    description: posts.find(post => post.id === item.postId)?.title || '초대받은 공고의 현재 상태를 확인해 주세요.',
+    time: item.id === 'invite-stranger' ? '1시간 전' : '오늘', read: item.status === 'viewed', type: 'invitation', targetType: 'invitation', targetId: item.id,
+  })));
   return {
-    posts, requests, rooms, appointments: mockAppointments, notifications, reviews,
-    favorites: [], invitations: [], completions: [], appointmentReviews: [],
+    posts, requests, rooms, appointments: [...mockAppointments, ...historyAppointments], notifications, reviews,
+    favorites, invitations, completions: [], appointmentReviews: [],
     notificationSettings: users.map(user => defaultNotificationSettings(user.id)), blocks: [],
     users, activeUserId: null, demo: defaultDemoSettings(), ui: { activeTab: 'home' },
   };

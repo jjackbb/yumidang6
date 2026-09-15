@@ -1,0 +1,47 @@
+{
+  "scope": "SIMULATED_AUTH browser integration",
+  "cases": [
+    {
+      "name": "prototype: test code, rejected wrong code, intended destination, reload and logout",
+      "status": "PASS"
+    },
+    {
+      "name": "prototype: signup with a test code persists the new member without external requests",
+      "status": "PASS"
+    },
+    {
+      "name": "prototype: public navigation works without login and cancel returns home",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase: OTP error then login, return route, reload, logout and history",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase: signup creates no session until OTP verification; editing phone clears challenge",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase: forged stored identity is rejected before private UI is rendered",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase: sign out in another tab closes private screens",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase: server logout failure clears local session and reports the limitation",
+      "status": "PASS"
+    },
+    {
+      "name": "Supabase: disabled phone provider never shows a successful send or OTP input",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit demo remains isolated even in Supabase mode",
+      "status": "PASS"
+    }
+  ],
+  "pageErrors": [],
+  "status": "PASS"
+}

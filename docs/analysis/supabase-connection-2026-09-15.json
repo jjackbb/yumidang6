@@ -1,0 +1,104 @@
+{
+  "checked_at": "2026-09-15T14:37:09.456031+09:00",
+  "project_url": "https://hrhudubhmazqevnrfsmo.supabase.co",
+  "method": "GET/HEAD only; no row values collected; no DB writes or auth messages",
+  "checks": {
+    "auth_health": {
+      "status": 200,
+      "content_type": "application/json",
+      "service": "GoTrue",
+      "version": "v2.196.0"
+    },
+    "auth_settings": {
+      "status": 200,
+      "content_type": "application/json",
+      "public_settings": {
+        "disable_signup": false,
+        "mailer_autoconfirm": false,
+        "phone_autoconfirm": false,
+        "sms_provider": "twilio",
+        "external": {
+          "anonymous_users": false,
+          "apple": false,
+          "azure": false,
+          "bitbucket": false,
+          "discord": false,
+          "facebook": false,
+          "snapchat": false,
+          "figma": false,
+          "fly": false,
+          "github": false,
+          "gitlab": false,
+          "google": false,
+          "keycloak": false,
+          "kakao": false,
+          "linkedin": false,
+          "linkedin_oidc": false,
+          "notion": false,
+          "spotify": false,
+          "slack": false,
+          "slack_oidc": false,
+          "workos": false,
+          "twitch": false,
+          "twitter": false,
+          "email": true,
+          "phone": false,
+          "zoom": false
+        }
+      }
+    },
+    "rest_schema": {
+      "status": 401,
+      "error_code": null,
+      "message": "Invalid API key"
+    },
+    "ui_pages": {
+      "status": 200,
+      "content_type": "application/json; charset=utf-8"
+    },
+    "ui_back_events": {
+      "status": 200,
+      "content_type": "application/json; charset=utf-8"
+    },
+    "user_funnel_events": {
+      "status": 200,
+      "content_type": "application/json; charset=utf-8"
+    }
+  },
+  "production": {
+    "http": 200,
+    "supabase_urls_in_bundle": [
+      "https://hrhudubhmazqevnrfsmo.supabase.co"
+    ],
+    "matches_local_fallback": true
+  },
+  "additional_read_checks": {
+    "back_events_get": {
+      "status": 200,
+      "returned_rows": 0
+    },
+    "funnel_events_get": {
+      "status": 200,
+      "returned_rows": 0
+    },
+    "pages_get": {
+      "status": 200,
+      "returned_rows": 0
+    },
+    "schema_json_accept": {
+      "status": 401,
+      "code": null,
+      "message": "Invalid API key"
+    },
+    "schema_apikey_only": {
+      "status": 401,
+      "code": null,
+      "message": "Invalid API key"
+    },
+    "no_key_control": {
+      "status": 401,
+      "code": null,
+      "message": "No API key found in request"
+    }
+  }
+}

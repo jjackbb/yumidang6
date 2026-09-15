@@ -2,10 +2,13 @@ import { isOpenRequest, postStatusLabel } from '../utils/postLifecycle';
 import { CompanionRequests, RequestTab } from './CompanionRequests';
 import React, { useState } from 'react';
 import { Heart, ShieldCheck, ChevronRight, Star, Award, LogOut, Sparkles, MessageSquare, Lock, Camera, Eye, PencilLine, Inbox } from 'lucide-react';
-import { Appointment, ChatMember, CurrentUser, Invitation, MeetupPost, ReviewItem, EscrowPayment, JoinRequest } from '../types';
+import { Appointment, ChatMember, CompletionConfirmation, CurrentUser, FavoriteFriend, Invitation, MeetupPost, ReviewItem, EscrowPayment, JoinRequest, NotificationSettings } from '../types';
 import { ACTIVITY_TABS, myActivity, postEndedReason, type ActivityTab } from '../utils/myActivity';
 import { DEMO_USER_ID } from '../data/demoIdentity';
 import { avatarSrc, profileStepLabel, type ProfileStep } from '../utils/profile';
+import { FavoriteFriendsPanel } from './FavoriteFriendsPanel';
+import { InvitationCenter } from './InvitationCenter';
+import { NotificationSettingsCard } from './NotificationSettingsCard';
 
 interface MyPageViewProps {
   appointments: Appointment[];
@@ -33,22 +36,28 @@ interface MyPageViewProps {
   reviews?: ReviewItem[];
   escrowPayments?: EscrowPayment[];
   invitations: Invitation[];
+  favorites: FavoriteFriend[];
+  completions: CompletionConfirmation[];
+  notificationSettings: NotificationSettings;
+  users: CurrentUser[];
+  now: Date;
   userNameOf: (userId: string) => string;
   /** The other participant of an appointment, from the viewer's side. */
   partnerOf: (appointment: Appointment) => ChatMember | undefined;
   onOpenAppointmentChat: (appointment: Appointment) => void;
   onOpenPartnerProfile: (member: ChatMember) => void;
-  onOpenInvitationPost: (postId: string) => void;
+  onOpenInvitationPost: (invitation: Invitation) => void;
+  onToggleFavoriteNotice: (targetId: string) => void;
+  onRemoveFavorite: (targetId: string) => void;
+  onInviteFavorite: (targetId: string, postId: string) => void;
+  onOpenFavoriteProfile: (targetId: string) => void;
+  onChangeStrangerInvitationNotice: (enabled: boolean) => void;
   acceptBlockedReason?: (request: JoinRequest) => string | null;
 }
 
-const invitationStatusLabel: Record<Invitation['status'], string> = {
-  received: '새 초대', viewed: '확인함', applied: '직접 신청함',
-  post_closed: '모집 마감', post_expired: '모집 기간 만료', post_deleted: '삭제된 공고',
-};
-
 export const MyPageView: React.FC<MyPageViewProps> = ({
-  invitations, userNameOf, partnerOf, onOpenAppointmentChat, onOpenPartnerProfile, onOpenInvitationPost, acceptBlockedReason,
+  invitations, favorites, completions, notificationSettings, users, now, userNameOf, partnerOf, onOpenAppointmentChat, onOpenPartnerProfile, onOpenInvitationPost,
+  onToggleFavoriteNotice, onRemoveFavorite, onInviteFavorite, onOpenFavoriteProfile, onChangeStrangerInvitationNotice, acceptBlockedReason,
   appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost, onOpenRequestChat, onOpenRequestProfile, onCancelRequest, onReconfirmRequest, posts, onOpenOwnPost,
   onOpenDashboard,
   currentUser,
@@ -63,7 +72,6 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'reviews' | 'escrow'>('info');
   const [activityTab, setActivityTab] = useState<ActivityTab>('confirmed');
-  const [invitationTab, setInvitationTab] = useState<'received' | 'sent'>('received');
 
   if (!currentUser || !currentUser.isLoggedIn) {
     return (
@@ -99,32 +107,11 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
         <button type="button" onClick={() => onEditProfile(profileMissing[0])} className="rounded-xl bg-amber-900 text-white px-3 py-2 font-bold">프로필 이어서 작성</button>
       </section>}
       <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} posts={posts} acceptBlockedReason={acceptBlockedReason} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} onReconfirm={onReconfirmRequest} /></div>
-      {(() => {
-        const received = invitations.filter(item => item.recipientId === currentUser.id);
-        const sent = invitations.filter(item => item.senderId === currentUser.id);
-        const visible = invitationTab === 'received' ? received : sent;
-        return <section aria-label="초대 관리" className="bg-white rounded-2xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
-          <h2 className="text-sm font-bold">초대 관리</h2>
-          <p className="text-[11px] text-gray-500 mt-1">초대를 받거나 열어도 신청·확정되지 않아요. 공고를 확인하고 직접 신청해야 해요.</p>
-          <div role="tablist" aria-label="초대 구분" className="flex gap-1.5 mt-3">
-            {([['received', '받은 초대', received.length], ['sent', '보낸 초대', sent.length]] as const).map(([value, label, count]) =>
-              <button key={value} type="button" role="tab" aria-selected={invitationTab === value} onClick={() => setInvitationTab(value)}
-                className={`flex-1 rounded-xl py-2 text-xs font-bold ${invitationTab === value ? 'bg-[#6c2cf5] text-white' : 'bg-gray-100 text-gray-500'}`}>{label} {count}</button>)}
-          </div>
-          <div role="tabpanel" aria-label={invitationTab === 'received' ? '받은 초대' : '보낸 초대'} className="mt-3 space-y-2">
-            {visible.length === 0 && <p className="text-xs text-gray-400 py-3 text-center">
-              {invitationTab === 'received' ? '아직 받은 초대가 없어요.' : '아직 보낸 초대가 없어요. 내 공고를 등록한 뒤 관심친구를 초대할 수 있어요.'}
-            </p>}
-            {visible.map(item => {
-              const post = posts.find(value => value.id === item.postId);
-              return <article key={item.id} data-invitation-id={item.id} className="rounded-xl border border-gray-100 p-3 text-xs">
-                <div className="flex items-center justify-between gap-2"><span className="font-bold">{userNameOf(invitationTab === 'received' ? item.senderId : item.recipientId)}</span><span className="text-[11px] text-[#6c2cf5]">{invitationStatusLabel[item.status]}</span></div>
-                <button type="button" onClick={() => onOpenInvitationPost(item.postId)} className="mt-1 w-full text-left text-gray-700 flex items-center justify-between gap-2">{post?.title || '공고 정보를 찾을 수 없어요'}<ChevronRight size={14} className="shrink-0 text-gray-400" /></button>
-              </article>;
-            })}
-          </div>
-        </section>;
-      })()}
+      <InvitationCenter userId={currentUser.id} invitations={invitations} posts={posts} favorites={favorites} appointments={appointments} completions={completions}
+        userNameOf={userNameOf} onOpenPost={onOpenInvitationPost} onOpenProfile={onOpenFavoriteProfile} />
+      <FavoriteFriendsPanel userId={currentUser.id} users={users} favorites={favorites} posts={posts} invitations={invitations} now={now}
+        onToggleNewPostNotice={onToggleFavoriteNotice} onRemove={onRemoveFavorite} onInvite={onInviteFavorite} onOpenProfile={onOpenFavoriteProfile} />
+      <NotificationSettingsCard strangerInvitations={notificationSettings.strangerInvitations} onChange={onChangeStrangerInvitationNotice} />
       {(() => {
         const activity = myActivity(currentUser.id, posts, appointments);
         const appointmentList = activity[activityTab];
