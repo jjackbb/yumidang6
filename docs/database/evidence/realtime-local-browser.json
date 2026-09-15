@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-09-15T08:55:34.974Z",
+  "base": "http://127.0.0.1:3024",
+  "roomId": "7c4ae6c5-448d-4843-936d-7b3b1673a540",
+  "realtimeLatencyMs": 831,
+  "cases": [
+    "app shell renders without the full-screen data wait message",
+    "both authenticated participants subscribe to chat realtime",
+    "message reaches both browsers without reload"
+  ],
+  "pageErrors": []
+}

@@ -356,7 +356,23 @@ export default function App() {
   };
   const updateRoomDraft = (id: string, draft: string) => setChatRooms(prev => prev.map(room => room.id === id && room.members.some(member => member.id === currentUser?.id) ? { ...room, draft } : room));
   const sendRoomMessage = (id: string, text: string, sample = false) => {
-    if (!prototypeAuth) { if (!sample) void cloud.run('message', { roomId: id, text, messageId: crypto.randomUUID() }, () => updateRoomDraft(id, '')); return; }
+    if (!prototypeAuth) {
+      if (!sample) {
+        const trimmed = text.trim();
+        const messageId = crypto.randomUUID();
+        if (!trimmed || !currentUser) return;
+        void cloud.run('message', { roomId: id, text: trimmed, messageId }, () => {
+          setChatRooms(prev => prev.map(room => {
+            if (room.id !== id) return room;
+            const messages = room.messages.some(message => message.id === messageId)
+              ? room.messages
+              : [...room.messages, { id: messageId, senderId: currentUser.id, text: trimmed, createdAt: new Date().toISOString() }];
+            return { ...room, draft: '', messages };
+          }));
+        });
+      }
+      return;
+    }
     const room = chatRooms.find(room => room.id === id);
     if (!room || !text.trim() || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canSend || (sample && currentUser?.id !== DEMO_USER_ID)) return;
     const senderId = sample ? room.members.find(member => member.id !== currentUser!.id)!.id : currentUser!.id;
@@ -395,12 +411,24 @@ export default function App() {
 
   const cloud = useCloud(!prototypeAuth, auth.user?.id || null, auth.status === 'loading', data => {
     setMeetupPosts(data.posts); setJoinRequests(data.requests); setAppointments(data.appointments);
-    setChatRooms(previous => data.rooms.map(room => ({ ...room, draft: previous.find(old => old.id === room.id)?.draft || '' })));
+    setChatRooms(previous => data.rooms.map(room => {
+      const old = previous.find(value => value.id === room.id);
+      const messages = [...room.messages];
+      for (const message of old?.messages || []) if (!messages.some(value => value.id === message.id)) messages.push(message);
+      messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      return { ...room, messages, draft: old?.draft || '' };
+    }));
     setNotifications(data.notifications); setFavorites(data.favorites); setInvitations(data.invitations);
     setCompletions(data.completions); setAppointmentReviews(data.appointmentReviews);
     setNotificationSettings(data.notificationSettings); setBlocks(data.blocks); setUsers(data.users);
-    setCurrentUser(data.users.find(user => user.id === auth.user?.id) || null);
+    setCurrentUser(data.users.find(user => user.id === auth.user?.id) || (auth.user ? currentUserFromAuth(auth.user) : null));
+  }, message => {
+    setChatRooms(previous => previous.map(room => room.id !== message.roomId || room.messages.some(value => value.id === message.id) ? room : {
+      ...room,
+      messages: [...room.messages, { id: message.id, senderId: message.senderId, text: message.text, createdAt: message.createdAt }],
+    }));
   });
+  const privateDataReady = privateAreaAllowed && (prototypeAuth || cloud.ready);
 
   // Save every shared record under the versioned key (tab changes, reloads, window close).
   const snapshot = (): PrototypeData => ({
@@ -1090,7 +1118,6 @@ export default function App() {
     }
   };
 
-  if (!prototypeAuth && !cloud.ready) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6"><p role="status">{cloud.error || '서버에서 데이터를 불러오고 있어요…'}</p><button className="text-purple-600 underline" onClick={() => void cloud.refresh()}>다시 불러오기</button></div>;
   return (
     <div className="min-h-screen bg-[#f2f4f8] flex justify-center selection:bg-purple-100">
       {/* Mobile container simulating the exact mobile app interface */}
@@ -1118,15 +1145,19 @@ export default function App() {
         <Header
           unreadCount={unreadNotifCount}
           onOpenNotifications={() => currentUser ? setIsNotificationsOpen(true) : setIsAuthModalOpen(true)}
-          currentUser={currentUser}
+          currentUser={privateDataReady ? currentUser : null}
           onOpenAuth={() => setIsAuthModalOpen(true)}
         />
-        {currentUser && profileMissing.length > 0 && !profileEditor && activeTab !== 'me' && <div role="status" data-profile-incomplete-bar className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-950">
+        {privateDataReady && currentUser && profileMissing.length > 0 && !profileEditor && activeTab !== 'me' && <div role="status" data-profile-incomplete-bar className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-950">
           <span className="flex-1 min-w-0">프로필 미완성 · 남은 단계 {profileMissing.map(step => profileStepLabel[step]).join(' · ')}</span>
           <button type="button" onClick={() => setProfileEditor({ mode: 'setup', step: profileMissing[0] })} className="shrink-0 rounded-lg bg-amber-900 text-white px-2.5 py-1 font-bold">이어서 작성</button>
         </div>}
 
         {isProtectedPath(path) && !privateAreaAllowed && <AuthGate status={prototypeAuth ? 'anonymous' : auth.status} error={auth.error} onRetry={auth.retry} onLogin={() => setIsAuthModalOpen(true)} />}
+        {isProtectedPath(path) && privateAreaAllowed && !privateDataReady && <div aria-hidden="true" className="flex-1 p-5 space-y-4 animate-pulse">
+          <div className="h-7 w-28 rounded-lg bg-gray-100" />
+          {[0, 1, 2].map(item => <div key={item} className="h-20 rounded-2xl bg-gray-100" />)}
+        </div>}
 
         {/* Tab 1: Home View */}
         {activeTab === 'home' && (
@@ -1168,7 +1199,7 @@ export default function App() {
         )}
 
         {/* Request and appointment conversations share the same rooms. */}
-        {activeTab === 'chat' && privateAreaAllowed && <div className="flex-1 flex flex-col">
+        {activeTab === 'chat' && privateDataReady && <div className="flex-1 flex flex-col" data-chat-realtime={cloud.realtimeReady ? 'connected' : 'connecting'}>
           {activeRoom && currentUser && activePartner ? <ChatView key={activeRoom.id}
             room={activeRoom} user={currentUser} partner={profileForMember(activePartner)} post={activeRoomPost} request={activeRoomRequest} appointment={activeRoomAppointment}
             status={roomAccess(activeRoom, currentUser.id, joinRequests, appointments, meetupPosts, clock())}
@@ -1189,7 +1220,7 @@ export default function App() {
         </div>}
 
         {/* Tab 4: Me */}
-        {activeTab === 'me' && privateAreaAllowed && (
+        {activeTab === 'me' && privateDataReady && (
           <div className="flex-1 overflow-y-auto">
             <MyPageView
               appointments={myAppointments}
@@ -1243,13 +1274,13 @@ export default function App() {
         {/* Bottom Navigation Bar + FAB (+) Button */}
         <BottomNav
           activeTab={activeTab}
-          unreadChatCount={notifications.filter(item => !item.read && item.type === 'chat' && chatRooms.some(room => room.id === item.roomId && room.members.some(member => member.id === currentUser?.id))).length}
+          unreadChatCount={privateDataReady ? notifications.filter(item => !item.read && item.type === 'chat' && chatRooms.some(room => room.id === item.roomId && room.members.some(member => member.id === currentUser?.id))).length : 0}
           onChangeTab={(tab) => setActiveTab(tab)}
           onOpenCreate={() => handleOpenCreateMeetup()}
         />
 
         {/* Modal: 참여 대시보드 */}
-        {appointment && <DashboardModal
+        {privateDataReady && appointment && <DashboardModal
           appointment={appointment}
           isOpen={isDashboardOpen && Boolean(currentUser && appointment?.participantIds?.includes(currentUser.id))}
           onClose={() => setIsDashboardOpen(false)}
@@ -1294,7 +1325,7 @@ export default function App() {
 
         {/* Modal: 새 동행 모집하기 / 공고 수정하기 (FAB + 클릭 또는 공고 수정 시) */}
         <CreateMeetupModal
-          isOpen={isCreateModalOpen && privateAreaAllowed}
+          isOpen={isCreateModalOpen && privateDataReady}
           onClose={() => {
             setIsCreateModalOpen(false);
             setEditingPost(null);
@@ -1303,7 +1334,7 @@ export default function App() {
           onCreateMeetup={handleCreateMeetup}
           onUpdatePost={handleUpdatePost}
           editPost={editingPost}
-          currentUser={currentUser}
+          currentUser={privateDataReady ? currentUser : null}
           now={now}
           variant={demoSettings.variants.postForm}
           showVariantLabel={demoMode}
@@ -1326,7 +1357,7 @@ export default function App() {
           onOpenExistingChat={existingPostRoom ? () => {
             setSelectedPostForDetail(null); setSelectedCategory(null); setSelectedEvent(null); openRoom(existingPostRoom);
           } : undefined}
-          canViewPrivateLocation={canViewSecretLocation(selectedPostForDetail?.id, appointments, currentUser?.id)}
+          canViewPrivateLocation={privateDataReady && canViewSecretLocation(selectedPostForDetail?.id, appointments, currentUser?.id)}
           authorProfile={selectedPostForDetail ? profileForMember(postAuthor(selectedPostForDetail)) : null}
           onOpenAuthorProfile={() => selectedPostForDetail && setSelectedChatProfile(postAuthor(selectedPostForDetail))}
           isCovered={Boolean(selectedChatProfile)}
@@ -1338,7 +1369,7 @@ export default function App() {
         {/* Phase 3 Modal: 1:1 동행 신청서 모달 (신청자) */}
         <JoinRequestModal
           post={meetupPosts.find(post => post.id === selectedPostForJoin?.id) || null}
-          isOpen={isJoinRequestModalOpen && privateAreaAllowed}
+          isOpen={isJoinRequestModalOpen && privateDataReady}
           onClose={() => {
             setIsJoinRequestModalOpen(false);
             setSelectedPostForJoin(null);
@@ -1356,14 +1387,14 @@ export default function App() {
 
         {/* Phase 4 Modal: 1:1 가상 안심 음성 통화 모달 */}
         <VoiceCallModal
-          isOpen={isVoiceCallOpen && privateAreaAllowed}
+          isOpen={isVoiceCallOpen && privateDataReady}
           onClose={() => setIsVoiceCallOpen(false)}
           appointment={appointment}
         />
 
         {/* Phase 4 Modal: 긴급 신고 및 노쇼(No-Show) 센터 모달 */}
         <ReportModal
-          isOpen={isReportOpen && privateAreaAllowed}
+          isOpen={isReportOpen && privateDataReady}
           onClose={() => setIsReportOpen(false)}
           appointment={appointment}
           onSubmitReport={handleReportSubmit}
@@ -1371,7 +1402,7 @@ export default function App() {
 
         {/* Modal: 알림 창 */}
         <NotificationModal
-          isOpen={isNotificationsOpen && privateAreaAllowed}
+          isOpen={isNotificationsOpen && privateDataReady}
           onClose={() => setIsNotificationsOpen(false)}
           notifications={myNotifications}
           onMarkAllAsRead={handleMarkAllNotificationsAsRead}
@@ -1392,7 +1423,7 @@ export default function App() {
           onOpenTarget={openNotificationTarget}
         />
 
-        {selectedChatProfile && <UserProfileModal
+        {privateDataReady && selectedChatProfile && <UserProfileModal
           key={selectedChatProfile.id}
           profile={profileForMember(selectedChatProfile)}
           variant={demoSettings.variants.profile}
@@ -1410,9 +1441,9 @@ export default function App() {
             onLoginRequired: () => { setSelectedChatProfile(null); setIsAuthModalOpen(true); },
           }}
         />}
-        {isProfilePreviewOpen && currentUser && <UserProfileModal profile={profileForMember(selfMember(currentUser))}
+        {privateDataReady && isProfilePreviewOpen && currentUser && <UserProfileModal profile={profileForMember(selfMember(currentUser))}
           variant={demoSettings.variants.profile} showVariantLabel={demoMode} selfPreview backLabel="Me로 돌아가기" onClose={() => setIsProfilePreviewOpen(false)} />}
-        {profileEditor && currentUser && <ProfileEditor
+        {privateDataReady && profileEditor && currentUser && <ProfileEditor
           key={`${currentUser.id}-${profileEditor.mode}`}
           user={currentUser} mode={profileEditor.mode} initialStep={profileEditor.step} reason={profileEditor.reason}
           variant={demoSettings.variants.profile} showVariantLabel={demoMode}
@@ -1421,15 +1452,15 @@ export default function App() {
           onClose={() => setProfileEditor(null)}
           onDone={() => { setProfileEditor(null); setLifecycleNotice(profileEditor.mode === 'setup' ? '프로필을 저장했어요. 이제 동행을 신청하거나 공고를 올릴 수 있어요.' : '프로필 변경을 저장했어요.'); }}
         />}
-        {privateAreaAllowed && safetyDialog?.kind === 'report' && <ReportUserDialog targetName={safetyDialog.member.displayName} onClose={() => setSafetyDialog(null)}
+        {privateDataReady && safetyDialog?.kind === 'report' && <ReportUserDialog targetName={safetyDialog.member.displayName} onClose={() => setSafetyDialog(null)}
           onSubmit={(reason, details) => { if (!prototypeAuth) { void cloud.run('report', { targetId: safetyDialog.member.id, reason, details }, () => { setSafetyDialog(null); setLifecycleNotice('신고를 서버에 접수했어요. 자동 제재는 적용되지 않아요.'); }); return; } setSafetyDialog(null); setLifecycleNotice('신고를 예시로 접수했어요. 실제 운영팀 전달이나 자동 제재는 없어요.'); }} />}
-        {privateAreaAllowed && safetyDialog?.kind === 'block' && <BlockUserDialog targetName={safetyDialog.member.displayName}
+        {privateDataReady && safetyDialog?.kind === 'block' && <BlockUserDialog targetName={safetyDialog.member.displayName}
           affectedTitles={activeAppointmentsWith(safetyDialog.member.id).map(item => item.title)}
           holdReason={currentUser && blockImpact(appointments, completions, currentUser.id, safetyDialog.member.id).mode === 'hold' ? (blockImpact(appointments, completions, currentUser.id, safetyDialog.member.id) as Extract<ReturnType<typeof blockImpact>, { mode: 'hold' }>).reason : undefined}
           onClose={() => setSafetyDialog(null)} onConfirm={() => confirmBlock(safetyDialog.member)} />}
-        {privateAreaAllowed && postAction && <LifecycleConfirmDialog title={postAction.mode === 'deleted' ? '공고 삭제' : '모집 마감'} description={postAction.mode === 'deleted' ? '공고를 목록에서 지우고 남아 있는 신청을 종료합니다. 기존 신청·대화 기록은 보존돼요.' : '새 신청을 받지 않고 미확정 신청을 함께 종료합니다. 동행이 확정되는 것은 아니에요.'} actionLabel={postAction.mode === 'deleted' ? '공고 삭제하기' : '모집 마감하기'} onClose={() => setPostAction(null)} onConfirm={confirmPostAction} />}
-        {privateAreaAllowed && cancellationTarget && <CancellationDialog key={cancellationTarget.id} kind={cancellationTarget.kind} title={cancellationTarget.title} onClose={() => setCancellationTarget(null)} onConfirm={confirmCancellation} />}
-        {privateAreaAllowed && conflictPrompt && <ScheduleConflictDialog conflicts={conflictPrompt.conflicts} onClose={() => setConflictPrompt(null)} onContinue={continueConflict} />}
+        {privateDataReady && postAction && <LifecycleConfirmDialog title={postAction.mode === 'deleted' ? '공고 삭제' : '모집 마감'} description={postAction.mode === 'deleted' ? '공고를 목록에서 지우고 남아 있는 신청을 종료합니다. 기존 신청·대화 기록은 보존돼요.' : '새 신청을 받지 않고 미확정 신청을 함께 종료합니다. 동행이 확정되는 것은 아니에요.'} actionLabel={postAction.mode === 'deleted' ? '공고 삭제하기' : '모집 마감하기'} onClose={() => setPostAction(null)} onConfirm={confirmPostAction} />}
+        {privateDataReady && cancellationTarget && <CancellationDialog key={cancellationTarget.id} kind={cancellationTarget.kind} title={cancellationTarget.title} onClose={() => setCancellationTarget(null)} onConfirm={confirmCancellation} />}
+        {privateDataReady && conflictPrompt && <ScheduleConflictDialog conflicts={conflictPrompt.conflicts} onClose={() => setConflictPrompt(null)} onContinue={continueConflict} />}
         {lifecycleNotice && <div role="alert" className="fixed bottom-24 left-5 right-5 mx-auto max-w-sm bg-gray-900 text-white p-4 rounded-2xl z-[95] text-xs leading-relaxed shadow-lg">{lifecycleNotice}<button onClick={() => setLifecycleNotice(null)} className="block ml-auto mt-2 font-bold underline">안내 닫기</button></div>}
         {/* Modal: 회원가입 / 휴대폰 본인확인 (Phase 1) */}
         <AuthModal
@@ -1444,13 +1475,13 @@ export default function App() {
 
         {/* Modal: 선택형 KYC 본인확인 (Phase 1) */}
         <KycAuthModal
-          isOpen={isKycModalOpen && privateAreaAllowed}
+          isOpen={isKycModalOpen && privateDataReady}
           onClose={() => setIsKycModalOpen(false)}
           isAlreadyVerified={currentUser?.isKycVerified || false}
         />
 
         {/* Phase 5 Modal: 상호 블라인드 평가 및 실시간 당도 정산 모달 */}
-        {isReviewModalOpen && privateAreaAllowed && <ReviewModal
+        {isReviewModalOpen && privateDataReady && <ReviewModal
           key={reviewAppointment.id}
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
@@ -1465,7 +1496,7 @@ export default function App() {
 
         {/* Phase 6 Modal: PRO 1:1 안심 에스크로 결제 모달 */}
         <EscrowPaymentModal
-          isOpen={isEscrowModalOpen && privateAreaAllowed}
+          isOpen={isEscrowModalOpen && privateDataReady}
           onClose={() => {
             setIsEscrowModalOpen(false);
             setSelectedProPostForEscrow(null);

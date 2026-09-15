@@ -1,35 +1,64 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { command, emptyCloudData, loadCloudData } from "./data";
+import { supabase } from "../lib/supabase";
 import type { PrototypeData } from "../utils/prototypeStore";
+
+export interface RealtimeChatMessage {
+  id: string;
+  roomId: string;
+  senderId: string;
+  text: string;
+  createdAt: string;
+}
 
 export function useCloud(
   enabled: boolean,
   userId: string | null,
   authLoading: boolean,
   apply: (data: PrototypeData) => void,
+  receiveMessage?: (message: RealtimeChatMessage) => void,
 ) {
   const [loadedFor, setLoadedFor] = useState<string | undefined>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [realtimeReady, setRealtimeReady] = useState(false);
   const applyRef = useRef(apply);
   applyRef.current = apply;
+  const receiveMessageRef = useRef(receiveMessage);
+  receiveMessageRef.current = receiveMessage;
   const identity = userId || "public";
   const current = useRef(identity);
   current.current = identity;
   const generation = useRef(0);
   const pending = useRef(false);
   const mutation = useRef(false);
+  const syncedFor = useRef<string | undefined>(undefined);
   const refresh = useCallback(async () => {
     if (!enabled || authLoading || pending.current || mutation.current) return;
     const ticket = ++generation.current;
     pending.current = true;
     try {
-      if (userId) await command("sync");
+      // Profile sync can take an Edge Function round trip. Start it in parallel so
+      // the app shell and existing data do not wait for it.
+      const sync = userId && syncedFor.current !== identity
+        ? command("sync").then(
+            () => true,
+            () => false,
+          )
+        : null;
       const data = await loadCloudData(userId);
       if (current.current !== identity || ticket !== generation.current) return;
       applyRef.current(data);
       setLoadedFor(identity);
       setError("");
+      if (sync) {
+        if (!(await sync)) return;
+        if (current.current !== identity || ticket !== generation.current) return;
+        syncedFor.current = identity;
+        const synced = await loadCloudData(userId);
+        if (current.current !== identity || ticket !== generation.current) return;
+        applyRef.current(synced);
+      }
     } catch (e) {
       if (current.current === identity)
         setError(
@@ -57,19 +86,58 @@ export function useCloud(
       window.removeEventListener("focus", focus);
     };
   }, [refresh, enabled]);
+  useEffect(() => {
+    if (!enabled || authLoading || !userId || !supabase) {
+      setRealtimeReady(false);
+      return;
+    }
+    const channel = supabase
+      .channel(`chat-messages-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages" },
+        (payload) => {
+          const row = payload.new as Record<string, unknown>;
+          receiveMessageRef.current?.({
+            id: String(row.id),
+            roomId: String(row.room_id),
+            senderId: row.sender_id ? String(row.sender_id) : "system",
+            text: String(row.body || ""),
+            createdAt: String(row.created_at),
+          });
+        },
+      )
+      .subscribe((status) => {
+        setRealtimeReady(status === "SUBSCRIBED");
+      });
+    return () => {
+      setRealtimeReady(false);
+      void supabase.removeChannel(channel);
+    };
+  }, [enabled, authLoading, userId]);
   const run = async (
     action: string,
     data: Record<string, unknown> = {},
     after?: (result: { id?: string; roomId?: string }) => void,
   ) => {
-    if (mutation.current) return false;
-    mutation.current = true;
-    setBusy(true);
+    const isMessage = action === "message";
+    // Reading notifications must never swallow a message the user just sent.
+    // Message IDs make concurrent sends safe and idempotent on the server.
+    if (mutation.current && !isMessage) return false;
+    if (!isMessage) mutation.current = true;
+    const showBusy = !isMessage;
+    if (showBusy) setBusy(true);
     setError("");
     const actor = current.current;
     try {
       const result = await command(action, data);
       if (current.current !== actor) return false;
+      // INSERT events keep both chat participants in sync. Avoid reloading every
+      // unrelated table after a message is committed.
+      if (isMessage) {
+        after?.(result);
+        return true;
+      }
       // Invalidate a poll that began before this write, then load the committed state.
       generation.current++;
       try {
@@ -90,14 +158,15 @@ export function useCloud(
         setError(e instanceof Error ? e.message : "저장하지 못했어요.");
       return false;
     } finally {
-      mutation.current = false;
-      setBusy(false);
+      if (!isMessage) mutation.current = false;
+      if (showBusy) setBusy(false);
     }
   };
   return {
     ready: !enabled || (!authLoading && loadedFor === identity),
     error,
     busy,
+    realtimeReady,
     refresh,
     run,
   };

@@ -4,7 +4,7 @@
 
 ## 현재 판정
 
-**Supabase API와 앱 연결을 완료했고 Vercel Preview에서 전체 DB 흐름을 검증했다. 운영 주소 반영만 대기 중이다.**
+**Supabase API와 앱 연결을 완료했고 Vercel Preview에서 전체 DB 흐름과 채팅 Realtime을 검증했다. 운영 주소 반영만 대기 중이다.**
 
 외부 도구 자동 승인 검토가 `Selected model is at capacity` 오류로 브라우저 재실행을 두 번 거부했고, 이후 읽기 전용 DB 조회도 같은 사유로 거부했다. 이를 DB/앱 실패 또는 배포 성공으로 해석하면 안 된다.
 
@@ -33,7 +33,8 @@
 - RPC는 `SECURITY INVOKER`이며 service_role만 실행 가능하다. 인증 사용자도 직접 RPC나 테이블 쓰기로 서버 검증을 우회할 수 없다. 기존 열 단위 쓰기 권한까지 회수했으며 RLS 읽기 권한은 유지한다.
 - 상태를 함께 바꾸는 작업은 하나의 DB 트랜잭션에서 처리한다. 초기 프로토타입 규모에 맞춰 트랜잭션 잠금으로 변경 요청을 직렬화했다. 사용자 수가 늘면 공고·참여자 단위 잠금으로 세분화해야 한다.
 - [cloud/data.ts](../../src/cloud/data.ts): 각 사용자의 JWT와 RLS로 데이터를 읽어 화면 타입으로 변환한다. 500행 단위로 페이지를 조회하며 샘플 업무 데이터를 실제 사용자 데이터로 가져오지 않는다.
-- [cloud/useCloud.ts](../../src/cloud/useCloud.ts): 로그인 계정 변경 시 이전 계정 데이터를 숨기고 새로 로드한다. 저장 결과를 받은 뒤 화면을 갱신하며 실패하면 안내를 표시한다. 8초 간격과 창 포커스 복귀 시 갱신한다. WebSocket 실시간 구독은 사용하지 않는다.
+- [cloud/useCloud.ts](../../src/cloud/useCloud.ts): 로그인 계정 변경 시 이전 계정 데이터를 숨기고 새로 로드한다. 앱 전체를 가리던 초기 대기 화면은 제거하고 앱 틀을 즉시 표시한다. 일반 데이터는 8초 간격과 창 포커스 복귀 시 보정하며, 채팅 메시지는 Supabase Postgres Changes WebSocket으로 즉시 받는다. 메시지 저장 뒤 전체 표를 다시 읽지 않는다.
+- [realtime.sql](../../supabase/realtime.sql): `chat_messages`만 `supabase_realtime` 발행에 등록한다. 기존 RLS 조회 정책이 적용되어 대화방 참여자만 해당 행의 변경 이벤트를 받을 수 있다.
 - 지역 필드 `meetup_posts.region`을 추가했다. `events`에는 9~10월 예시 행사 40개를 `source_type=sample`, `source_name=prototype`으로 저장했다. [저장한 예시 행사](../../supabase/sample-events.json). KOPIS 또는 외부 행사 수집 API 연결을 의미하지 않는다.
 - SQL은 MCP로 적용했다. CLI 마이그레이션 이력은 아직 생성하지 않았다. 원본 SQL과 생성한 [DB 타입](../../src/types/database.ts)을 함께 보관한다.
 
@@ -44,14 +45,16 @@
 3. **PASS — 실제 브라우저와 실제 Supabase**: 두 계정 로그인, 공고 작성, 새로고침 후 공고 유지, 타 계정 신청, 작성자 수락과 같은 대화방 열기. 실행 오류 0건. [기록](evidence/cloud-browser.json).
 4. **PASS — 채팅 UI 수정 후 재검증**: DB 테스트 배너 높이를 채팅 영역 계산에 포함했다. 로컬 실제 브라우저에서 메시지 저장·상대 계정 조회, 네트워크 실패 시 오류 표시와 저장되지 않은 메시지가 대화에 나타나지 않는 것을 확인했다.
 5. **PASS — Vercel Preview 통합 검증**: `https://yumidang6-8jwqxxtbp-jjackbb-projects.vercel.app` 배포 `dpl_7HGSu7gGPwE8VLLX6knULLVVVSeH`에서 두 계정 로그인, 공고 저장·새로고침, 신청·수락, 채팅 저장·상대 조회, 실패 안내 8개가 통과했다. JavaScript pageerror 0건. Preview 접근 보호가 적용돼 있으며 [실행 기록](evidence/vercel-preview-browser.json)을 보존했다.
-6. **PASS — 로컬 검사**: 단위 테스트 85개, 타입 검사와 Vite 빌드. 큰 JS 번들 경고는 남아 있다.
-7. **보안 advisor**: RLS/권한 관련 신규 지적 없음. Auth의 유출 비밀번호 차단 설정 미사용 WARN 1개가 남아 있다. 테스트 로그인은 사용자가 정한 비밀번호를 받지 않는다. 실제 일반 가입을 제공할 때 [비밀번호 보호 설정](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)을 검토한다. 성능 advisor는 사용되지 않은 초기 인덱스 INFO 18개였다.
+6. **PASS — 채팅 Realtime 실제 브라우저 검증**: 두 테스트 계정이 같은 대화방을 연 상태에서 양쪽 WebSocket 구독을 확인했다. 발신 후 상대 브라우저가 새로고침 없이 메시지를 받았고 측정 지연은 831ms, JavaScript pageerror는 0건이었다. 앱 전체를 가리던 기존 데이터 대기 문구가 나타나지 않는 것도 함께 확인했다. [기록](evidence/realtime-local-browser.json), [실행 코드](../../scripts/check-realtime-browser.cjs).
+7. **PASS — Realtime Vercel Preview 검증**: 최종 Preview `https://yumidang6-4uqlyufc7-jjackbb-projects.vercel.app` 배포 `dpl_BU1SL3C8SiwSoFShh8jsahFjihvN`에서 동일한 두 계정 검사를 통과했다. 상대 브라우저의 새로고침 없는 메시지 도착은 1,322ms, JavaScript pageerror는 0건이었다. [기록](evidence/realtime-preview-browser.json).
+8. **PASS — 로컬 검사**: 단위 테스트 85개, 타입 검사와 Vite 빌드. 큰 JS 번들 경고는 남아 있다.
+9. **보안 advisor**: Realtime DDL 적용 후 RLS/권한 관련 신규 지적 없음. Auth의 유출 비밀번호 차단 설정 미사용 WARN 1개가 남아 있다. 테스트 로그인은 사용자가 정한 비밀번호를 받지 않는다. 실제 일반 가입을 제공할 때 [비밀번호 보호 설정](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)을 검토한다. 성능 advisor는 사용되지 않은 초기 인덱스 INFO 17개였다.
 
 테스트 과정에서 `[DB 연동 검증]`, `[화면 검증]`으로 표시된 가상 공고·신청·약속·메시지를 생성했다. 실제 회원 활동이나 운영 성과가 아니다. API 검증 공고는 삭제 상태이며, 화면 검증 공고 일부는 다음 검사에 사용할 수 있도록 남아 있다.
 
 ## 재개 순서
 
 1. `VITE_AUTH_MODE=supabase-test npm run dev -- --host 127.0.0.1 --port 3023`로 실행한다.
-2. `node scripts/check-cloud-browser.cjs`를 실행해 채팅 전송·타 계정 조회·강제 네트워크 실패 안내까지 확인한다. 실패를 숨기거나 버튼을 강제 클릭하지 않는다. 이전 실패 때문에 남은 확정 약속과 시간이 겹치면 새 검증 날짜를 선택한다.
+2. `node scripts/check-realtime-browser.cjs`를 실행해 두 계정의 WebSocket 연결과 새로고침 없는 채팅 도착 시간을 확인한다. 전체 신청·수락 흐름은 `node scripts/check-cloud-browser.cjs`로 확인한다.
 3. Preview `VITE_AUTH_MODE=supabase-test` 설정과 배포 검증은 완료했다. Production의 같은 변경은 공용 인증을 운영에 여는 정확한 범위의 사용자 승인을 받은 뒤 적용한다.
 4. 검증된 Preview를 Production으로 배포하고 운영 주소에서 다시 확인한다.

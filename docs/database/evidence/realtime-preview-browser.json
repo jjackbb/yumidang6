@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-09-15T09:03:47.337Z",
+  "base": "https://yumidang6-4uqlyufc7-jjackbb-projects.vercel.app",
+  "roomId": "7c4ae6c5-448d-4843-936d-7b3b1673a540",
+  "realtimeLatencyMs": 1322,
+  "cases": [
+    "app shell renders without the full-screen data wait message",
+    "both authenticated participants subscribe to chat realtime",
+    "message reaches both browsers without reload"
+  ],
+  "pageErrors": []
+}
