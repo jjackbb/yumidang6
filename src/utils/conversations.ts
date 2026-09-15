@@ -27,6 +27,7 @@ export function roomAccess(
   requests: JoinRequest[],
   appointments: Appointment[],
   posts: MeetupPost[],
+  now = new Date(),
 ) {
   if (!userId || !room.members.some((member) => member.id === userId))
     return { canView: false, canSend: false, label: '참여자만 볼 수 있어요' };
@@ -64,7 +65,7 @@ export function roomAccess(
       canSend: false,
       label: post.status === 'expired' ? '기간 만료' : '모집 마감',
     };
-  if (!isRecruiting(post))
+  if (!isRecruiting(post, now))
     return { canView: true, canSend: false, label: '기간 만료' };
   return {
     canView: true,
@@ -113,6 +114,7 @@ export function acceptRequest(
   post: MeetupPost | undefined,
   requestId: string,
   actorId: string | undefined,
+  now = new Date(),
 ) {
   const target = requests.find((item) => item.id === requestId);
   if (
@@ -122,7 +124,7 @@ export function acceptRequest(
     post.authorId !== target.hostId ||
     target.hostId !== actorId ||
     target.status !== 'pending' ||
-    !isRecruiting(post) ||
+    !isRecruiting(post, now) ||
     requests.some(
       (item) => item.postId === post.id && item.status === 'accepted',
     )

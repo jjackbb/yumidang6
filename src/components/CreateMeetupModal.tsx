@@ -1,8 +1,11 @@
-import { appointmentStart, demoSchedule, koreaDateKey } from '../utils/calendar';
 import React, { useState, useLayoutEffect } from 'react';
-import { X, Calendar, MapPin, Lock, Info, Sparkles, ShieldCheck, AlertCircle } from 'lucide-react';
-import { MeetupPost, CurrentUser } from '../types';
-import { formatClock, formatMeetupRange, isValidMeetupRange } from '../utils/meetupLifecycle';
+import { X, Lock, Sparkles, ShieldCheck, AlertCircle, CalendarHeart } from 'lucide-react';
+import { ABVariant, MeetupPost, CurrentUser } from '../types';
+import { avatarSrc } from '../utils/profile';
+import {
+  PARTNER_GENDERS, POST_CATEGORIES, POST_FORM_STEPS, defaultPostForm, postFieldsFromForm, postFormFromPost, validatePostForm,
+  type PostFormErrors, type PostFormField, type PostFormValues,
+} from '../utils/postForm';
 
 interface CreateMeetupModalProps {
   isOpen: boolean;
@@ -11,32 +14,32 @@ interface CreateMeetupModalProps {
   onUpdatePost?: (updatedPost: MeetupPost) => boolean;
   editPost?: MeetupPost | null;
   currentUser: CurrentUser | null;
+  /** Prototype clock (shifted in the demo); used for past-schedule and deadline checks. */
+  now: Date;
+  /** 04 A: one sheet, 04 B: two steps. Same fields, validation and saved result. */
+  variant: ABVariant;
+  showVariantLabel?: boolean;
+  initialCategory?: string;
+  /** Post created from an event detail keeps that eventId only. */
+  linkedEvent?: { id: string; title: string } | null;
 }
 
-export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
-  isOpen,
-  onClose,
-  onCreateMeetup,
-  onUpdatePost,
-  editPost,
-  currentUser,
-}) => {
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('식사');
-  const [date, setDate] = useState(koreaDateKey(new Date(demoSchedule(1))));
-  const [time, setTime] = useState('18:00');
-  const [endDate, setEndDate] = useState(date);
-  const [customDeadline, setCustomDeadline] = useState('');
-  const [endTime, setEndTime] = useState('19:00');
-  const [description, setDescription] = useState('');
-  const [scheduleError, setScheduleError] = useState('');
-  const [location, setLocation] = useState('서울 강남구 대치동');
-  const [publicLocation, setPublicLocation] = useState('대치역 3번 출구 앞');
-  const [secretLocation, setSecretLocation] = useState('르브런치 2층 예약석');
-  const [partnerPreferences, setPartnerPreferences] = useState('시간 약속 잘 지키고 편안한 대화 나누실 분 환영해요 :)');
-  const [tagInput, setTagInput] = useState('#맛집탐방 #주말브런치');
+const FIELD_IDS: Record<PostFormField, string> = {
+  title: 'meetup-title', category: 'meetup-category', description: 'meetup-description',
+  startDate: 'meetup-start-date', startTime: 'meetup-start-time', endDate: 'meetup-end-date', endTime: 'meetup-end-time',
+  deadline: 'meetup-deadline', location: 'meetup-location', publicLocation: 'meetup-public-location',
+  secretLocation: 'meetup-secret-location', partnerGender: 'meetup-partner-gender', partnerPreferences: 'meetup-partner-preferences', tags: 'meetup-tags',
+};
+const inputClass = 'w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-200 aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-red-300';
 
-  // Phase 6: Pro Paid Companion States
+export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
+  isOpen, onClose, onCreateMeetup, onUpdatePost, editPost, currentUser, now, variant, showVariantLabel = false, initialCategory, linkedEvent,
+}) => {
+  const [values, setValues] = useState<PostFormValues>(() => defaultPostForm(now));
+  const [errors, setErrors] = useState<PostFormErrors>({});
+  const [step, setStep] = useState(0);
+
+  // Paid option is a separate preview experience, not part of the shared field contract.
   const [companionType, setCompanionType] = useState<'free' | 'pro'>('free');
   const [showProRequirementModal, setShowProRequirementModal] = useState(false);
   const [hourlyRate, setHourlyRate] = useState<number>(25000);
@@ -46,101 +49,70 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
   const [excluded, setExcluded] = useState<string>('카페 음료비 개인 부담');
 
   const isEditing = Boolean(editPost);
-
-  const handleSelectProType = () => {
-    // PRO 전문 동행 개설 조건: 당도 90 이상 및 본인인증 완료
-    const isEligible = currentUser && currentUser.sugarContent >= 90 && currentUser.isPhoneVerified;
-    if (!isEligible) {
-      setShowProRequirementModal(true);
-      return;
-    }
-    setCompanionType('pro');
-  };
+  const eventTitle = linkedEvent?.title;
 
   useLayoutEffect(() => {
-    setScheduleError('');
-    const cutoff = editPost?.recruitmentEndsAt;
-    setCustomDeadline(cutoff && cutoff !== editPost?.startsAt ? `${koreaDateKey(new Date(cutoff))}T${formatClock(cutoff)}` : '');
-    if (editPost) {
-      setTitle(editPost.title);
-      setCategory(editPost.category);
-      setDescription(editPost.description || '');
-      const start = appointmentStart({ scheduledAt: editPost.startsAt, dateTime: editPost.time });
-      if (Number.isFinite(start.getTime())) {
-        setDate(koreaDateKey(start));
-        setTime(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' }).format(start));
-      }
-      const hasEnd = editPost.endsAt && Number.isFinite(Date.parse(editPost.endsAt));
-      setEndDate(hasEnd ? koreaDateKey(new Date(editPost.endsAt!)) : '');
-      setEndTime(hasEnd ? formatClock(editPost.endsAt!) : '');
-      setLocation(editPost.location);
-      setPublicLocation(editPost.publicLocation || '');
-      setSecretLocation(editPost.secretLocation || '');
-      setPartnerPreferences(editPost.partnerPreferences || '');
-      setTagInput(editPost.tags.map((t) => `#${t}`).join(' '));
-      setCompanionType(editPost.companionType || 'free');
-      if (editPost.proDetails) {
-        setHourlyRate(editPost.proDetails.hourlyRate);
-        setSpecialty(editPost.proDetails.specialty);
-        setCurriculum(editPost.proDetails.curriculum.join('\n'));
-        setIncluded(editPost.proDetails.included.join(', '));
-        setExcluded(editPost.proDetails.excluded.join(', '));
-      }
-    } else {
-      setTitle('');
-      setCategory('식사');
-      setDate(koreaDateKey(new Date(demoSchedule(1))));
-      setTime('18:00');
-      setEndDate(koreaDateKey(new Date(demoSchedule(1))));
-      setEndTime('19:00');
-      setDescription('');
-      setLocation('서울 강남구 대치동');
-      setPublicLocation('대치역 3번 출구 앞');
-      setSecretLocation('르브런치 2층 예약석');
-      setPartnerPreferences('시간 약속 잘 지키고 편안한 대화 나누실 분 환영해요 :)');
-      setTagInput('#맛집탐방 #주말브런치');
-      setCompanionType('free');
-      setHourlyRate(25000);
-      setSpecialty('스냅 촬영 & 감성 보정');
-      setCurriculum('10분: 촬영 컨셉 상담\n40분: 스냅 촬영\n10분: 사진 모니터링');
-      setIncluded('보정본 10장, 원본 전체');
-      setExcluded('카페 음료비 개인 부담');
+    setErrors({}); setStep(0);
+    setValues(editPost ? postFormFromPost(editPost, now) : defaultPostForm(now, initialCategory || '식사'));
+    setCompanionType(editPost?.companionType || 'free');
+    if (editPost?.proDetails) {
+      setHourlyRate(editPost.proDetails.hourlyRate);
+      setSpecialty(editPost.proDetails.specialty);
+      setCurriculum(editPost.proDetails.curriculum.join('\n'));
+      setIncluded(editPost.proDetails.included.join(', '));
+      setExcluded(editPost.proDetails.excluded.join(', '));
     }
   }, [editPost, isOpen]);
 
   if (!isOpen) return null;
 
-  const categories = ['전시', '축제', '식사', '운동', '여행', '클래스', '산책', '스터디', '공연', '쇼핑', '지금', '기타'];
+  const set = <K extends PostFormField>(field: K, value: PostFormValues[K]) => {
+    setValues(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev }; delete next[field]; return next;
+    });
+  };
+  const fieldProps = (field: PostFormField) => ({
+    id: FIELD_IDS[field],
+    'aria-invalid': Boolean(errors[field]) || undefined,
+    'aria-describedby': errors[field] ? `${FIELD_IDS[field]}-error` : undefined,
+  });
+  const errorOf = (field: PostFormField) => errors[field]
+    ? <p id={`${FIELD_IDS[field]}-error`} role="alert" data-field-error={field} className="text-[11px] text-red-600 mt-1">{errors[field]}</p>
+    : null;
+  const focusFirst = (found: PostFormErrors) => {
+    const first = (Object.keys(FIELD_IDS) as PostFormField[]).find(field => found[field]);
+    if (first) requestAnimationFrame(() => document.getElementById(FIELD_IDS[first])?.focus());
+  };
+
+  const handleSelectProType = () => {
+    // PRO 전문 동행 개설 조건: 당도 90 이상 및 본인인증 완료
+    const isEligible = currentUser && currentUser.sugarContent >= 90 && currentUser.isPhoneVerified;
+    if (!isEligible) { setShowProRequirementModal(true); return; }
+    setCompanionType('pro');
+  };
+
+  const goNext = () => {
+    const found = validatePostForm(values, now, POST_FORM_STEPS[0]);
+    setErrors(found);
+    if (Object.keys(found).length) { focusFirst(found); return; }
+    setStep(1);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    const startValue = `${date}T${time}:00+09:00`;
-    const endValue = `${endDate}T${endTime}:00+09:00`;
-    if (!isValidMeetupRange(startValue, endValue)) {
-      setScheduleError('종료 시각은 시작 시각보다 늦어야 해요. 다음 날 끝나면 종료 날짜도 바꿔 주세요.');
+    if (variant === 'B' && step === 0) { goNext(); return; }
+    const found = validatePostForm(values, now);
+    setErrors(found);
+    if (Object.keys(found).length) {
+      if (variant === 'B' && POST_FORM_STEPS[0].some(field => found[field])) setStep(0);
+      focusFirst(found);
       return;
     }
-    const deadline = new Date(`${customDeadline || `${date}T${time}`}:00+09:00`);
-    if (!Number.isFinite(deadline.getTime()) || deadline.getTime() <= Date.now() || deadline.getTime() > Date.parse(startValue)) {
-      setScheduleError('모집 마감은 현재 시각 이후, 동행 시작 시각 이전으로 정해 주세요. 시작 시각과 같게 설정할 수도 있어요.'); return;
-    }
-    const startsAt = new Date(startValue).toISOString();
-    const endsAt = new Date(endValue).toISOString();
-    const schedule = { startsAt, endsAt, recruitmentEndsAt: deadline.toISOString(), time: formatMeetupRange(startsAt, endsAt), description: description.trim() };
-
-    const parsedTags = tagInput
-      ? tagInput
-          .split(' ')
-          .map((t) => t.replace('#', '').trim())
-          .filter(Boolean)
-      : [category, '1대1동행'];
-
-    if (companionType === 'pro') {
-      if (!parsedTags.includes('PRO전문동행')) parsedTags.unshift('PRO전문동행');
-    }
-
-    const proDetailsData = companionType === 'pro' ? {
+    const fields = postFieldsFromForm(values);
+    if (companionType === 'pro' && !fields.tags.includes('PRO전문동행')) fields.tags.unshift('PRO전문동행');
+    const proDetails = companionType === 'pro' ? {
       hourlyRate: Number(hourlyRate) || 25000,
       specialty: specialty.trim() || '맞춤 전문 동행',
       curriculum: curriculum.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -149,441 +121,224 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
     } : undefined;
 
     if (isEditing && editPost && onUpdatePost) {
-      const updated: MeetupPost = {
-        ...editPost,
-        title: title.trim(),
-        category,
-        ...schedule,
-        location,
-        publicLocation: publicLocation.trim(),
-        secretLocation: secretLocation.trim(),
-        partnerPreferences: partnerPreferences.trim(),
-        tags: parsedTags,
-        companionType,
-        proDetails: proDetailsData,
-      };
-      if (!onUpdatePost(updated)) return;
+      if (!onUpdatePost({ ...editPost, ...fields, companionType, proDetails })) return;
     } else {
+      if (!currentUser) return;
       const newPost: MeetupPost = {
         id: `post-${crypto.randomUUID()}`,
-        category,
-        title: title.trim(),
-        author: currentUser ? currentUser.maskedName : '조*미',
-        authorId: currentUser ? currentUser.id : 'user-default',
-        avatar: currentUser
-          ? currentUser.avatar
-          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-        ...schedule,
-        location,
-        publicLocation: publicLocation.trim(),
-        secretLocation: secretLocation.trim(),
-        partnerPreferences: partnerPreferences.trim(),
-        currentMembers: 1,
-        maxMembers: 2, // 1:1 동행 2인 고정
-        tags: parsedTags,
-        status: 'recruiting',
-        companionType,
-        proDetails: proDetailsData,
+        author: currentUser.maskedName, authorId: currentUser.id, avatar: avatarSrc(currentUser.avatar),
+        ...fields,
+        eventId: linkedEvent?.id,
+        currentMembers: 1, maxMembers: 2, // 1:1 동행 2인 고정
+        status: 'recruiting', companionType, proDetails,
       };
       if (!onCreateMeetup(newPost)) return;
     }
-
     onClose();
   };
 
-  return (
-    <div role="dialog" aria-modal="true" aria-label={isEditing ? '동행 공고 수정' : '동행 공고 작성'} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
-      <div
-        className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
-          <h3 className="text-[17px] font-bold text-gray-900">
-            {isEditing ? '1:1 동행 공고 수정' : '새 1:1 동행 모집하기'}
-          </h3>
-          <button
-            onClick={onClose} aria-label="공고 작성 창 닫기"
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
+  const startKey = `${values.startDate}T${values.startTime}`;
+
+  const basics = <>
+    <div>
+      <span id={FIELD_IDS.category} tabIndex={-1} className="block text-xs font-bold text-gray-600 mb-1.5">카테고리 선택</span>
+      <div role="radiogroup" aria-labelledby={FIELD_IDS.category} className="flex flex-wrap gap-1.5">
+        {POST_CATEGORIES.map((cat) => (
+          <button type="button" role="radio" aria-checked={values.category === cat} key={cat} onClick={() => set('category', cat)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${values.category === cat ? 'bg-[#6c2cf5] text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            {cat}
           </button>
+        ))}
+      </div>
+      {errorOf('category')}
+    </div>
+    <div>
+      <label htmlFor={FIELD_IDS.title} className="block text-xs font-bold text-gray-600 mb-1.5">모집 제목</label>
+      <input type="text" {...fieldProps('title')} placeholder="예: 주말 삼청동 한옥 카페 디저트 투어 1:1 동행 가실 분!" value={values.title} onChange={(e) => set('title', e.target.value)} className={`${inputClass} text-sm py-2.5`} />
+      {errorOf('title')}
+    </div>
+    <div>
+      <label htmlFor={FIELD_IDS.description} className="block text-xs font-bold text-gray-600 mb-1.5">동행 상세 소개</label>
+      <textarea {...fieldProps('description')} rows={4} value={values.description} onChange={e => set('description', e.target.value)} placeholder="무엇을 함께할지, 활동 순서와 준비물 등을 알려주세요." className={`${inputClass} text-sm p-3`} />
+      {errorOf('description')}
+    </div>
+  </>;
+
+  const schedule = <>
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <label htmlFor={FIELD_IDS.startDate} className="block text-xs font-bold text-gray-600 mb-1.5">시작 날짜</label>
+        <input type="date" {...fieldProps('startDate')} aria-label="시작 날짜" value={values.startDate}
+          onChange={(e) => { if (values.endDate === values.startDate) set('endDate', e.target.value); set('startDate', e.target.value); }} className={inputClass} />
+      </div>
+      <div>
+        <label htmlFor={FIELD_IDS.startTime} className="block text-xs font-bold text-gray-600 mb-1.5">시작 시각</label>
+        <input type="time" {...fieldProps('startTime')} aria-label="시작 시각" value={values.startTime} onChange={(e) => { set('startTime', e.target.value); set('startDate', values.startDate); }} className={inputClass} />
+      </div>
+    </div>
+    {errorOf('startDate')}
+    <div className="grid grid-cols-2 gap-2">
+      <div><label htmlFor={FIELD_IDS.endDate} className="block text-xs font-bold text-gray-600 mb-1.5">종료 날짜</label><input type="date" {...fieldProps('endDate')} min={values.startDate} value={values.endDate} onChange={e => set('endDate', e.target.value)} className={inputClass} /></div>
+      <div><label htmlFor={FIELD_IDS.endTime} className="block text-xs font-bold text-gray-600 mb-1.5">종료 시각</label><input type="time" {...fieldProps('endTime')} value={values.endTime} onChange={e => { set('endTime', e.target.value); set('endDate', values.endDate); }} className={inputClass} /></div>
+    </div>
+    {errorOf('endDate')}
+    <p className="text-xs text-gray-500">공고에 정한 종료 시각부터 동행 완료·평가가 가능해요.</p>
+    <label className="block text-xs font-bold text-gray-600">모집 마감 날짜·시각
+      <input type="datetime-local" {...fieldProps('deadline')} value={values.deadline || startKey} max={startKey} onChange={event => set('deadline', event.target.value === startKey ? '' : event.target.value)} className={`${inputClass} block p-3 mt-2 font-normal`} />
+    </label>
+    {errorOf('deadline')}
+    <p className="text-[11px] text-gray-500">기본값은 동행 시작 시각이에요. 이 시각부터 새 신청과 미확정 신청의 수락이 종료됩니다. 모집 마감은 동행 완료가 아니에요.</p>
+  </>;
+
+  const place = <>
+    <div>
+      <span className="block text-xs font-bold text-gray-600 mb-1">공개 만남 지역 (누구나 열람 가능)</span>
+      <div className="grid grid-cols-2 gap-2">
+        <input type="text" {...fieldProps('location')} aria-label="공개 만남 지역" placeholder="지역구 (예: 서울 종로구)" value={values.location} onChange={(e) => set('location', e.target.value)} className={inputClass} />
+        <input type="text" {...fieldProps('publicLocation')} aria-label="공개 랜드마크" placeholder="공개 랜드마크 (예: 안국역 2번 출구)" value={values.publicLocation} onChange={(e) => set('publicLocation', e.target.value)} className={inputClass} />
+      </div>
+      {errorOf('location')}{errorOf('publicLocation')}
+    </div>
+    <div className="p-3.5 bg-purple-50/50 rounded-2xl space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label htmlFor={FIELD_IDS.secretLocation} className="text-xs font-bold text-gray-700 flex items-center gap-1">
+          <Lock className="w-3.5 h-3.5 text-[#6c2cf5]" /><span>확정자 전용 상세 장소</span>
+        </label>
+        <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded">확정 시에만 공개</span>
+      </div>
+      <input type="text" {...fieldProps('secretLocation')} placeholder="예: 어니언 안국 3번 야외 테이블, 카페 2층 카운터 앞" value={values.secretLocation} onChange={(e) => set('secretLocation', e.target.value)} className={`${inputClass} bg-white`} />
+      <p className="text-[10px] text-gray-500 leading-tight">매칭이 확정된 파트너 1인에게만 공개돼요. 모집을 마감해도 공개되지 않아요.</p>
+    </div>
+  </>;
+
+  const partner = <>
+    <fieldset>
+      <legend className="block text-xs font-bold text-gray-600 mb-1.5">상대 성별 조건</legend>
+      <div role="radiogroup" id={FIELD_IDS.partnerGender} tabIndex={-1} aria-label="상대 성별 조건" className="grid grid-cols-3 gap-1.5">
+        {PARTNER_GENDERS.map(option => (
+          <button type="button" role="radio" key={option.value} aria-checked={values.partnerGender === option.value} onClick={() => set('partnerGender', option.value)}
+            className={`py-2 rounded-xl text-xs font-semibold ${values.partnerGender === option.value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>{option.label}</button>
+        ))}
+      </div>
+      <p className="text-[11px] text-gray-500 mt-1">조건에 맞는 회원만 신청할 수 있고, 맞지 않는 회원에게는 이유를 안내해요.</p>
+      {errorOf('partnerGender')}
+    </fieldset>
+    <div>
+      <label htmlFor={FIELD_IDS.partnerPreferences} className="block text-xs font-bold text-gray-600 mb-1.5">동행 파트너에게 바라는 점 / 사전 질문</label>
+      <textarea {...fieldProps('partnerPreferences')} rows={2} placeholder="예: 편안한 분위기 좋아하시는 분, 비흡연자 선호합니다." value={values.partnerPreferences} onChange={(e) => set('partnerPreferences', e.target.value)} className={`${inputClass} resize-none`} />
+    </div>
+    <div>
+      <label htmlFor={FIELD_IDS.tags} className="block text-xs font-bold text-gray-600 mb-1.5">태그 (공백으로 구분)</label>
+      <input type="text" {...fieldProps('tags')} placeholder="#주말 #맛집탐방 #동네친구" value={values.tags} onChange={(e) => set('tags', e.target.value)} className={inputClass} />
+    </div>
+  </>;
+
+  const companion = <div>
+    <span className="block text-xs font-bold text-gray-700 mb-1.5">동행 유형 선택</span>
+    <div className="grid grid-cols-2 gap-2">
+      <button type="button" aria-pressed={companionType === 'free'} onClick={() => setCompanionType('free')}
+        className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${companionType === 'free' ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200/80'}`}>
+        <span>☕ 일반 취향 동행</span><span className="text-[10px] font-normal opacity-80">(무료/각자)</span>
+      </button>
+      <button type="button" aria-pressed={companionType === 'pro'} onClick={handleSelectProType}
+        className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${companionType === 'pro' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-purple-50 text-purple-700 hover:bg-purple-100/70'}`}>
+        <span>💎 PRO 전문 동행</span><span className="text-[10px] font-normal opacity-90">(유료 체험)</span>
+      </button>
+    </div>
+    {companionType === 'pro' && (
+      <div className="mt-3 p-4 bg-purple-50/70 rounded-2xl space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-purple-950 flex items-center gap-1"><Sparkles size={14} className="text-[#6c2cf5]" /><span>PRO 유료 옵션 체험 정보</span></span>
+          <span className="text-[10px] font-bold bg-white text-[#6c2cf5] px-2 py-0.5 rounded-full">실제 결제 없음</span>
+        </div>
+        <label className="block text-[11px] font-bold text-gray-700">시간당 희망 비용 (원)
+          <input type="number" step="5000" min="10000" value={hourlyRate} onChange={(e) => setHourlyRate(Number(e.target.value))} className="mt-1 w-full px-3.5 py-2 rounded-xl bg-white text-xs font-bold text-gray-900" />
+        </label>
+        <label className="block text-[11px] font-bold text-gray-700">전문 분야 / 스킬 타이틀
+          <input type="text" value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="mt-1 w-full px-3.5 py-2 rounded-xl bg-white text-xs text-gray-800" />
+        </label>
+        <label className="block text-[11px] font-bold text-gray-700">활동 커리큘럼 (줄바꿈으로 구분)
+          <textarea rows={2} value={curriculum} onChange={(e) => setCurriculum(e.target.value)} className="mt-1 w-full px-3.5 py-2 rounded-xl bg-white text-xs text-gray-800 resize-none" />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block text-[11px] font-bold text-gray-700">포함 내역 (쉼표 구분)<input type="text" value={included} onChange={(e) => setIncluded(e.target.value)} className="mt-1 w-full px-3 py-1.5 rounded-xl bg-white text-[11px] text-gray-800" /></label>
+          <label className="block text-[11px] font-bold text-gray-700">불포함 내역 (쉼표 구분)<input type="text" value={excluded} onChange={(e) => setExcluded(e.target.value)} className="mt-1 w-full px-3 py-1.5 rounded-xl bg-white text-[11px] text-gray-800" /></label>
+        </div>
+      </div>
+    )}
+  </div>;
+
+  const summary = <section aria-label="1단계 입력 확인" className="rounded-2xl bg-gray-50 p-3 text-[11px] text-gray-600 space-y-1">
+    <div className="flex items-center justify-between"><b className="text-gray-800">1단계 입력 내용</b><button type="button" onClick={() => setStep(0)} className="text-[#6c2cf5] font-bold">수정</button></div>
+    <p className="truncate">[{values.category}] {values.title}</p>
+    <p>{values.startDate} {values.startTime} ~ {values.endDate} {values.endTime} · 마감 {values.deadline ? values.deadline.replace('T', ' ') : '시작 시각과 같음'}</p>
+  </section>;
+
+  const submitLabel = isEditing ? '공고 수정 완료' : '1:1 동행 등록 완료';
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={isEditing ? '동행 공고 수정' : '동행 공고 작성'} data-post-form-variant={variant} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
+          <div className="min-w-0">
+            <h3 className="text-[17px] font-bold text-gray-900">{isEditing ? '1:1 동행 공고 수정' : '새 1:1 동행 모집하기'}</h3>
+            {variant === 'B' && <p className="text-[11px] text-gray-500" data-form-step={step + 1}>{step + 1}/2 단계 · {step === 0 ? '기본 정보·일정' : '장소·상대 조건'}</p>}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {showVariantLabel && <span className="text-[10px] font-bold rounded bg-amber-100 text-amber-900 px-1.5 py-0.5">04 {variant}안</span>}
+            <button type="button" onClick={onClose} aria-label="공고 작성 창 닫기" className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* 1:1 Matching Fixed Notice */}
-          <div className="p-3.5 bg-[#f0edff] rounded-2xl flex items-center justify-between">
+        <form noValidate onSubmit={handleSubmit} className="p-5 space-y-4">
+          {(!isEditing || step === 0) && <div className="p-3.5 bg-[#f0edff] rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#6c2cf5] text-white flex items-center justify-center text-xs font-bold shadow-xs">
-                1:1
-              </div>
+              <div className="w-8 h-8 rounded-full bg-[#6c2cf5] text-white flex items-center justify-center text-xs font-bold shadow-xs">1:1</div>
               <div>
-                <span className="text-xs font-bold text-gray-900 block">
-                  1대1 맞춤 동행 서비스
-                </span>
-                <span className="text-[11px] text-gray-500">
-                  나 + 동행 파트너 1명 (총 2인 정원 고정)
-                </span>
+                <span className="text-xs font-bold text-gray-900 block">1대1 맞춤 동행 · 등록 즉시 전체 공개</span>
+                <span className="text-[11px] text-gray-500">나 + 동행 파트너 1명 (총 2인 정원 고정)</span>
               </div>
             </div>
-            <span className="text-xs font-bold text-[#6c2cf5] bg-white px-2.5 py-1 rounded-lg shadow-2xs">
-              2/2명 고정
-            </span>
-          </div>
+          </div>}
+          {(eventTitle || editPost?.eventId) && <p data-linked-event={linkedEvent?.id || editPost?.eventId} className="flex items-center gap-1.5 rounded-xl bg-rose-50 text-rose-900 text-xs p-3">
+            <CalendarHeart size={14} className="shrink-0" /><span>연결 행사: <b>{eventTitle || '행사 연결 공고'}</b> · 이 행사의 관련 공고에만 표시돼요</span>
+          </p>}
 
-          {/* Phase 6: Companion Type Selection (Free vs PRO) */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">
-              동행 유형 선택
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setCompanionType('free')}
-                className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  companionType === 'free'
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200/80'
-                }`}
-              >
-                <span>☕ 일반 취향 동행</span>
-                <span className="text-[10px] font-normal opacity-80">(무료/각자)</span>
-              </button>
+          {variant === 'A' || step === 0 ? <>{basics}{schedule}</> : summary}
+          {(variant === 'A' || step === 1) && <>{place}{partner}{companion}</>}
+          {isEditing && <p className="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-3">일정·장소·활동 내용이나 상대 조건을 바꾸면 기존 신청자에게 다시 확인을 받아요. 동의만으로 확정되지 않고 작성자 수락이 필요해요. 확정된 동행은 채팅의 변경 제안을 이용해 주세요.</p>}
+          {Object.keys(errors).length > 0 && <p className="text-xs text-red-600" data-form-error-count={Object.keys(errors).length}>입력 내용을 확인해 주세요. 표시된 항목 {Object.keys(errors).length}개를 고치면 저장할 수 있어요.</p>}
 
-              <button
-                type="button"
-                onClick={handleSelectProType}
-                className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  companionType === 'pro'
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/25 scale-[1.02]'
-                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100/70'
-                }`}
-              >
-                <span>💎 PRO 전문 동행</span>
-                <span className="text-[10px] font-normal opacity-90">(유료 오퍼)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Pro Details Form if PRO selected */}
-          {companionType === 'pro' && (
-            <div className="p-4 bg-purple-50/70 rounded-2xl space-y-3 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-purple-950 flex items-center gap-1">
-                  <Sparkles size={14} className="text-[#6c2cf5]" />
-                  <span>PRO 유료 오퍼 상세 정보</span>
-                </span>
-                <span className="text-[10px] font-bold bg-[#6c2cf5] text-white px-2 py-0.5 rounded-full">
-                  에스크로 보호 적용
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  시간당 희망 비용 (원)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="5000"
-                    min="10000"
-                    value={hourlyRate}
-                    onChange={(e) => setHourlyRate(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 rounded-xl bg-white text-xs font-bold text-gray-900 focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-                    placeholder="25000"
-                  />
-                  <span className="absolute right-3 top-2 text-xs text-gray-500">원 / 시간</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  전문 분야 / 스킬 타이틀
-                </label>
-                <input
-                  type="text"
-                  value={specialty}
-                  onChange={(e) => setSpecialty(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white text-xs text-gray-800 focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-                  placeholder="예: 인물 스냅 사진 & 감성 색감보정, 1:1 러닝 자세 코칭"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  활동 커리큘럼 (줄바꿈으로 구분)
-                </label>
-                <textarea
-                  rows={2}
-                  value={curriculum}
-                  onChange={(e) => setCurriculum(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white text-xs text-gray-800 focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5] resize-none"
-                  placeholder="10분: 상담 및 코스 브리핑&#10;40분: 실전 1:1 동행 진행&#10;10분: 피드백 및 정리"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                    포함 내역 (쉼표 구분)
-                  </label>
-                  <input
-                    type="text"
-                    value={included}
-                    onChange={(e) => setIncluded(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl bg-white text-[11px] text-gray-800 focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-                    placeholder="보정본 10장, 음료 제공"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                    불포함 내역 (쉼표 구분)
-                  </label>
-                  <input
-                    type="text"
-                    value={excluded}
-                    onChange={(e) => setExcluded(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl bg-white text-[11px] text-gray-800 focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-                    placeholder="개인 음료비, 입장료"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Category selection */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              카테고리 선택
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {categories.map((cat) => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    category === cat
-                      ? 'bg-[#6c2cf5] text-white shadow-xs'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              모집 제목
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="예: 주말 삼청동 한옥 카페 디저트 투어 1:1 동행 가실 분!"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-            />
-          </div>
-
-          {/* Date & Time */}
-          <div>
-            <label htmlFor="meetup-description" className="block text-xs font-bold text-gray-600 mb-1.5">동행 상세 소개</label>
-            <textarea id="meetup-description" required rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="무엇을 함께할지, 활동 순서와 준비물 등을 알려주세요." className="w-full p-3 rounded-xl bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                시작 날짜
-              </label>
-              <input
-                type="date"
-                aria-label="시작 날짜"
-                required
-                value={date}
-                onChange={(e) => { if (endDate === date) setEndDate(e.target.value); setDate(e.target.value); setScheduleError(''); }}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                시작 시각
-              </label>
-              <input
-                type="time"
-                aria-label="시작 시각"
-                required
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div><label htmlFor="meetup-end-date" className="block text-xs font-bold text-gray-600 mb-1.5">종료 날짜</label><input id="meetup-end-date" type="date" required min={date} value={endDate} onChange={e => { setEndDate(e.target.value); setScheduleError(''); }} className="w-full px-3 py-2 rounded-xl bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-purple-200" /></div>
-            <div><label htmlFor="meetup-end-time" className="block text-xs font-bold text-gray-600 mb-1.5">종료 시각</label><input id="meetup-end-time" type="time" required value={endTime} onChange={e => { setEndTime(e.target.value); setScheduleError(''); }} className="w-full px-3 py-2 rounded-xl bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-purple-200" /></div>
-          </div>
-          <p className="text-xs text-gray-500">공고에 정한 종료 시각부터 동행 완료·평가가 가능해요.</p>
-          <label className="block text-xs font-bold text-gray-600">모집 마감 날짜·시각<input type="datetime-local" required value={customDeadline || `${date}T${time}`} max={`${date}T${time}`} onChange={event => setCustomDeadline(event.target.value)} className="block w-full bg-gray-50 rounded-xl p-3 mt-2 text-xs font-normal" /></label>
-          <p className="text-[11px] text-gray-500">기본값은 동행 시작 시각이에요. 이 시각부터 새 신청과 미확정 신청의 수락이 종료됩니다.</p>
-          {isEditing && <p className="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-3">일정·장소·활동 내용이나 상대 조건을 바꾸면 기존 신청자에게 다시 확인을 받아요. 확정된 동행은 채팅의 변경 제안을 이용해 주세요.</p>}
-          {scheduleError && <p role="alert" className="text-xs text-red-600">{scheduleError}</p>}
-
-          {/* Public Location (General Area) */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1">
-              공개 만남 지역 (누구나 열람 가능)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                placeholder="지역구 (예: 서울 종로구)"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-              />
-              <input
-                type="text"
-                placeholder="공개 랜드마크 (예: 안국역 2번 출구)"
-                value={publicLocation}
-                onChange={(e) => setPublicLocation(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-              />
-            </div>
-          </div>
-
-          {/* Secret Location (Masked for privacy) */}
-          <div className="p-3.5 bg-purple-50/50 rounded-2xl space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-gray-700 flex items-center gap-1">
-                <Lock className="w-3.5 h-3.5 text-[#6c2cf5]" />
-                <span>확정자 전용 상세 비밀 장소 (안심 보호 🔒)</span>
-              </label>
-              <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded">
-                확정 시에만 공개
-              </span>
-            </div>
-            <input
-              type="text"
-              placeholder="예: 어니언 안국 3번 야외 테이블, 카페 2층 카운터 앞"
-              value={secretLocation}
-              onChange={(e) => setSecretLocation(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl text-xs bg-white focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5] shadow-2xs"
-            />
-            <p className="text-[10px] text-gray-500 leading-tight">
-              * 스토킹 및 개인정보 보호를 위해, 매칭이 확정된 파트너 1인에게만 이 장소가 공개됩니다.
-            </p>
-          </div>
-
-          {/* Partner Preferences */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              동행 파트너에게 바라는 점 / 사전 질문
-            </label>
-            <textarea
-              rows={2}
-              placeholder="예: 편안한 분위기 좋아하시는 분, 비흡연자 선호합니다."
-              value={partnerPreferences}
-              onChange={(e) => setPartnerPreferences(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5] resize-none"
-            />
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              태그 (공백으로 구분)
-            </label>
-            <input
-              type="text"
-              placeholder="#주말 #맛집탐방 #동네친구"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs focus:outline-none focus:ring-1.5 focus:ring-[#6c2cf5]"
-            />
-          </div>
-
-          {/* Submit */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              className="w-full py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all"
-            >
-              {isEditing ? '공고 수정 완료' : '1:1 동행 등록 완료'}
-            </button>
+          <div className="pt-2 flex gap-2">
+            {variant === 'B' && step === 1 && <button type="button" onClick={() => setStep(0)} className="flex-1 py-3.5 bg-gray-100 text-gray-700 font-bold rounded-xl text-sm">이전</button>}
+            {variant === 'B' && step === 0
+              ? <button type="button" onClick={goNext} className="w-full py-3.5 bg-[#6c2cf5] text-white font-bold rounded-xl text-[15px]">다음</button>
+              : <button type="submit" className="flex-[2] w-full py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all">{submitLabel}</button>}
           </div>
         </form>
       </div>
 
-      {/* PRO Host Requirement Modal Popup */}
       {showProRequirementModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div
-            className="bg-white w-full max-w-[360px] rounded-3xl p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shadow-inner">
-              <Sparkles className="w-7 h-7" />
-            </div>
-
-            <h4 className="text-lg font-bold text-gray-900 mb-1.5">
-              PRO 전문 동행 개설 안내
-            </h4>
-            <p className="text-xs text-gray-500 leading-relaxed mb-5">
-              스냅 촬영, 운동 코칭, 투어 등 유료 오퍼를 제공하는 PRO 동행은 안전한 1:1 만남과 신뢰를 위해 기준 충족 후 개설할 수 있습니다.
-            </p>
-
+          <div role="dialog" aria-modal="true" aria-label="PRO 전문 동행 개설 안내" className="bg-white w-full max-w-[360px] rounded-3xl p-6 shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shadow-inner"><Sparkles className="w-7 h-7" /></div>
+            <h4 className="text-lg font-bold text-gray-900 mb-1.5">PRO 전문 동행 개설 안내</h4>
+            <p className="text-xs text-gray-500 leading-relaxed mb-5">유료 옵션은 별도 체험이에요. 개설 기준은 예시이며 실제 결제·정산은 연결되지 않아요.</p>
             <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-5 text-left text-xs">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className={`w-4 h-4 ${currentUser?.isPhoneVerified ? 'text-emerald-500' : 'text-gray-400'}`} />
-                  <span className="font-medium text-gray-700">휴대폰 본인확인</span>
-                </div>
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                  currentUser?.isPhoneVerified ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {currentUser?.isPhoneVerified ? '인증 완료' : '미완료'}
-                </span>
+                <div className="flex items-center gap-2"><ShieldCheck className={`w-4 h-4 ${currentUser?.isPhoneVerified ? 'text-emerald-500' : 'text-gray-400'}`} /><span className="font-medium text-gray-700">휴대폰 본인확인</span></div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${currentUser?.isPhoneVerified ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-200 text-gray-600'}`}>{currentUser?.isPhoneVerified ? '인증 완료' : '미완료'}</span>
               </div>
-
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">🍯</span>
-                  <span className="font-medium text-gray-700">매너 당도 90 Brix 이상</span>
-                </div>
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                  (currentUser?.sugarContent || 0) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                }`}>
-                  현재 {currentUser?.sugarContent || 50} Brix
-                </span>
+                <div className="flex items-center gap-2"><span className="text-sm">🍯</span><span className="font-medium text-gray-700">당도 90 이상 (예시 기준)</span></div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${(currentUser?.sugarContent || 0) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>현재 {currentUser?.sugarContent ?? '-'}</span>
               </div>
-
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-purple-400" />
-                  <span className="font-medium text-gray-700">일반 동행 완료 이력</span>
-                </div>
-                <span className="text-[11px] font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
-                  3회 이상 권장
-                </span>
+                <div className="flex items-center gap-2"><AlertCircle className="w-4 h-4 text-purple-400" /><span className="font-medium text-gray-700">일반 동행 완료 이력</span></div>
+                <span className="text-[11px] font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded">논의 중</span>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setShowProRequirementModal(false);
-                setCompanionType('free');
-              }}
-              className="w-full py-3 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-purple-500/20 active:scale-98"
-            >
-              일반 취향 동행으로 모집하기
-            </button>
+            <button type="button" onClick={() => { setShowProRequirementModal(false); setCompanionType('free'); }} className="w-full py-3 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-sm">일반 취향 동행으로 모집하기</button>
           </div>
         </div>
       )}

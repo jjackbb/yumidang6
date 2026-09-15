@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   X,
   MapPin,
@@ -14,9 +14,7 @@ import {
   MessageCircle,
   ChevronRight,
 } from 'lucide-react';
-import { MeetupPost, CurrentUser } from '../types';
-import { publicProfileForPost } from '../data/publicProfiles';
-import { UserProfileModal } from './UserProfileModal';
+import { MeetupPost, CurrentUser, PublicUserProfile } from '../types';
 import { isRecruiting, postStatusLabel, recruitmentDeadline } from '../utils/postLifecycle';
 import { formatSchedule } from '../utils/calendar';
 import { formatMeetupRange } from '../utils/meetupLifecycle';
@@ -34,6 +32,11 @@ interface PostDetailModalProps {
   canViewPrivateLocation?: boolean;
   onOpenExistingChat?: () => void;
   hasLinkedAppointment?: boolean;
+  /** Same public profile every screen uses for this author. */
+  authorProfile: PublicUserProfile | null;
+  onOpenAuthorProfile: () => void;
+  /** A profile opened from here sits on top; keep this dialog out of keyboard reach until it closes. */
+  isCovered?: boolean;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -48,11 +51,10 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onDeletePost,
   canViewPrivateLocation = false,
   onOpenExistingChat, hasLinkedAppointment = false,
+  authorProfile, onOpenAuthorProfile, isCovered = false,
 }) => {
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  useEffect(() => setIsProfileOpen(false), [post?.id, isOpen]);
-  if (!isOpen || !post) return null;
-  const profile = publicProfileForPost(post, currentUser);
+  if (!isOpen || !post || !authorProfile) return null;
+  const profile = authorProfile;
 
   const isHost = Boolean(
     currentUser && currentUser.id === post.authorId
@@ -64,7 +66,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   if (post.status === 'deleted') return <div role="dialog" aria-modal="true" aria-label="삭제된 공고" className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-5"><div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4"><h2 className="text-lg font-bold">삭제된 공고예요</h2><p className="text-sm text-gray-500">{post.title}</p><p className="text-xs text-gray-500">새 신청은 할 수 없어요. Me와 채팅에서 이전 신청과 대화 기록은 확인할 수 있습니다.</p><button onClick={onClose} className="w-full bg-[#6c2cf5] text-white rounded-xl p-3 text-sm">이전 화면으로</button></div></div>;
 
   return (
-    <><div role="dialog" aria-modal="true" aria-label="동행 공고 상세" inert={isProfileOpen} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <><div role="dialog" aria-modal="true" aria-label="동행 공고 상세" inert={isCovered} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -113,11 +115,11 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
               {post.title}
             </h3>
 
-            <button type="button" onClick={() => setIsProfileOpen(true)} aria-label={`${profile.displayName}님의 상세 프로필 보기`} className="w-full text-left flex items-center justify-between gap-2 mt-3 p-3 rounded-2xl bg-[#f8f9fc] hover:bg-purple-50 transition-colors focus-visible:outline-2 focus-visible:outline-purple-500">
+            <button type="button" onClick={onOpenAuthorProfile} data-author-id={profile.id} aria-label={`${profile.displayName}님의 상세 프로필 보기`} className="w-full text-left flex items-center justify-between gap-2 mt-3 p-3 rounded-2xl bg-[#f8f9fc] hover:bg-purple-50 transition-colors focus-visible:outline-2 focus-visible:outline-purple-500">
               <div className="flex items-center gap-2.5 min-w-0">
                 <img
                   src={profile.avatar}
-                  alt={post.author}
+                  alt=""
                   className="w-10 h-10 shrink-0 rounded-full object-cover shadow-2xs"
                 />
                 <div className="min-w-0">
@@ -127,7 +129,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       호스트
                     </span>
                   </div>
-                  <span className="text-xs text-gray-500">{profile.sugarContent === null ? '당도 정보 없음' : `당도 ${profile.sugarContent} 🍯`}{profile.isPhoneVerified ? ' · 휴대폰 인증' : ''}</span>
+                  <span className="text-xs text-gray-500">{profile.sugarContent === null ? '당도 정보 없음' : `당도 ${profile.sugarContent} 🍯`}{profile.isPhoneVerified ? ' · 휴대폰 인증' : ' · 인증 전'}{[profile.neighborhood, profile.ageGroup].filter(Boolean).length ? ` · ${[profile.neighborhood, profile.ageGroup].filter(Boolean).join(' · ')}` : ''}</span>
                   <p className="text-xs text-gray-500 mt-1 line-clamp-1">{profile.bio || '자세한 프로필을 확인해 보세요.'}</p>
                 </div>
               </div>
@@ -351,6 +353,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
           </div>
         </div>
       </div>
-    </div>{isProfileOpen && <UserProfileModal profile={profile} onClose={() => setIsProfileOpen(false)} />}</>
+    </div></>
   );
 };

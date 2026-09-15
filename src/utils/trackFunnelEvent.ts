@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { UIPageKey } from './trackBackEvent';
+import { externalServicesBlocked } from './demoMode';
 
 export type FunnelStep =
   | 'POST_DETAIL_VIEW'        // 가설 1: 공고 상세 확인
@@ -24,6 +25,7 @@ export const trackFunnelEvent = async ({
   targetPostId,
   metadata = {},
 }: TrackFunnelParams) => {
+  if (externalServicesBlocked()) return;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id || null;

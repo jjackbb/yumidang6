@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { externalServicesBlocked } from './demoMode';
 
 /**
  * 정규화된 UI 페이지/모달 식별자 키
@@ -39,6 +40,7 @@ export const trackBackEvent = async ({
   durationMs,
   metadata = {},
 }: TrackBackParams) => {
+  if (externalServicesBlocked()) return;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id || null;

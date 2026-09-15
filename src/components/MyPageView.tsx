@@ -1,8 +1,10 @@
 import { postStatusLabel } from '../utils/postLifecycle';
 import { CompanionRequests, RequestTab } from './CompanionRequests';
-import React, { useState, useRef } from 'react';
-import { User, Heart, Calendar, ShieldCheck, ChevronRight, Settings, Star, Award, LogOut, Sparkles, MessageSquare, Clock, Lock, CreditCard, Camera } from 'lucide-react';
+import React, { useState } from 'react';
+import { Heart, ShieldCheck, ChevronRight, Star, Award, LogOut, Sparkles, MessageSquare, Lock, Camera, Eye, PencilLine } from 'lucide-react';
 import { Appointment, CurrentUser, MeetupPost, ReviewItem, EscrowPayment, JoinRequest } from '../types';
+import { DEMO_USER_ID } from '../data/demoIdentity';
+import { avatarSrc, profileStepLabel, type ProfileStep } from '../utils/profile';
 
 interface MyPageViewProps {
   appointments: Appointment[];
@@ -23,7 +25,10 @@ interface MyPageViewProps {
   onOpenAuth: () => void;
   onOpenKyc: () => void;
   onLogout: () => void;
-  onUpdateAvatar?: (avatar: string) => void;
+  /** Required profile steps still missing (photo, interests, bio). */
+  profileMissing: ProfileStep[];
+  onEditProfile: (step?: ProfileStep) => void;
+  onPreviewProfile: () => void;
   reviews?: ReviewItem[];
   escrowPayments?: EscrowPayment[];
 }
@@ -35,29 +40,13 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
   onOpenAuth,
   onOpenKyc,
   onLogout,
-  onUpdateAvatar,
+  profileMissing,
+  onEditProfile,
+  onPreviewProfile,
   reviews = [],
   escrowPayments = [],
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'reviews' | 'escrow'>('info');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onUpdateAvatar) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('사진 파일 크기는 5MB 이하여야 합니다.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          onUpdateAvatar(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   if (!currentUser || !currentUser.isLoggedIn) {
     return (
@@ -79,37 +68,41 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
     );
   }
 
-  const diffSugar = Math.round(currentUser.sugarContent - 50);
+
+  // Sample reviews in the seed belong to the example member only; everyone else shows real counts.
+  const myReviews = currentUser.id === DEMO_USER_ID ? reviews : [];
+  const completedCount = appointments.filter(item => item.status === '동행 완료').length;
+  const averageRating = myReviews.length ? (myReviews.reduce((sum, item) => sum + item.rating, 0) / myReviews.length).toFixed(1) : '—';
 
   return (
     <div className="px-5 pt-3 pb-24 text-left space-y-4">
+      {profileMissing.length > 0 && <section aria-label="프로필 완성 안내" data-profile-incomplete className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950 space-y-2">
+        <p className="font-bold text-sm">프로필을 완성해 주세요</p>
+        <p>남은 단계: {profileMissing.map(step => profileStepLabel[step]).join(' · ')}. 완성 전에는 동행 신청과 공고 작성이 제한돼요.</p>
+        <button type="button" onClick={() => onEditProfile(profileMissing[0])} className="rounded-xl bg-amber-900 text-white px-3 py-2 font-bold">프로필 이어서 작성</button>
+      </section>}
       <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} onReconfirm={onReconfirmRequest} /></div>
       <section aria-label="내가 쓴 공고" className="bg-white rounded-2xl p-4"><h2 className="text-sm font-bold mb-3">내가 쓴 공고</h2>{posts.filter(post => post.authorId === currentUser.id && post.status !== 'deleted').length === 0 ? <p className="text-xs text-gray-500">아직 작성한 공고가 없어요.</p> : posts.filter(post => post.authorId === currentUser.id && post.status !== 'deleted').map(post => <button key={post.id} onClick={() => onOpenOwnPost(post.id)} className="w-full text-left py-3 border-b border-gray-100 text-xs"><b className="block">{post.title}</b><span className="block text-gray-500 mt-1">{postStatusLabel(post)} · {post.time}</span></button>)}</section>
       {/* Profile Card */}
       <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div
-              className="relative group cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-              title="프로필 사진 변경"
+            <button
+              type="button"
+              className="relative group shrink-0"
+              onClick={() => onEditProfile(profileMissing.includes('photo') ? 'photo' : undefined)}
+              aria-label="프로필 사진 변경"
             >
               <img
-                src={currentUser.avatar}
-                alt="내 프로필"
+                src={avatarSrc(currentUser.avatar)}
+                alt="내 프로필 사진"
+                data-my-avatar
                 className="w-14 h-14 rounded-full object-cover shadow-xs group-hover:opacity-90 transition-opacity"
               />
               <span className="absolute bottom-0 right-0 w-5 h-5 bg-[#6c2cf5] rounded-full border-2 border-white flex items-center justify-center text-white shadow-xs group-hover:scale-110 transition-transform">
                 <Camera className="w-2.5 h-2.5" />
               </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-            </div>
+            </button>
 
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -121,9 +114,13 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                     <Sparkles className="w-3 h-3" />
                     공식 KYC 인증
                   </span>
-                ) : (
+                ) : currentUser.isPhoneVerified ? (
                   <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
-                    인증회원
+                    {currentUser.isSample ? '인증회원 · 예시' : '인증회원'}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    인증 전
                   </span>
                 )}
               </div>
@@ -155,10 +152,19 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
             />
           </div>
           <p className="text-[11px] text-gray-400 mt-1">
-            {diffSugar >= 0
-              ? `기본 당도 50에서 ${diffSugar} 올랐어요!`
-              : `기본 당도 50에서 ${Math.abs(diffSugar)} 변동되었어요.`}
+            {currentUser.isSample
+              ? '예시 회원의 샘플 당도예요. 합산·하한·갱신 시점은 논의 중이에요.'
+              : '신규 가입 당도 15에서 시작해요. 합산·하한·갱신 시점은 논의 중이에요.'}
           </p>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-100 space-y-2 text-xs">
+          <div className="flex flex-wrap gap-1.5">{[...(currentUser.hobbies || []), ...(currentUser.traits || [])].map(value => <span key={value} className="rounded-full bg-[#f0edff] text-[#6c2cf5] px-2.5 py-1">{value}</span>)}</div>
+          <p data-my-bio className="text-gray-600 leading-relaxed whitespace-pre-wrap line-clamp-3">{currentUser.bio || '아직 자기소개가 없어요.'}</p>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" onClick={() => onEditProfile()} className="flex items-center justify-center gap-1 rounded-xl bg-gray-100 py-2.5 font-bold text-gray-800"><PencilLine size={13} />프로필 편집</button>
+            <button type="button" onClick={onPreviewProfile} className="flex items-center justify-center gap-1 rounded-xl bg-[#f0edff] py-2.5 font-bold text-[#6c2cf5]"><Eye size={13} />공개 프로필 미리보기</button>
+          </div>
         </div>
       </div>
 
@@ -173,7 +179,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
               : 'bg-white shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:bg-gray-50'
           }`}
         >
-          <div className="text-[18px] font-bold text-[#6c2cf5]">14회</div>
+          <div className="text-[18px] font-bold text-[#6c2cf5]">{completedCount}회</div>
           <div className="text-xs text-gray-500 mt-0.5 font-medium">참여한 동행</div>
         </button>
         <button
@@ -185,7 +191,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
               : 'bg-white shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:bg-gray-50'
           }`}
         >
-          <div className="text-[18px] font-bold text-amber-500">5.0</div>
+          <div className="text-[18px] font-bold text-amber-500">{averageRating}</div>
           <div className="text-xs text-gray-500 mt-0.5 font-medium">동행 평점</div>
         </button>
         <button
@@ -197,7 +203,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
               : 'bg-white shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:bg-gray-50'
           }`}
         >
-          <div className="text-[18px] font-bold text-rose-500">{reviews.length > 0 ? reviews.length : 3}개</div>
+          <div className="text-[18px] font-bold text-rose-500">{myReviews.length}개</div>
           <div className="text-xs text-gray-500 mt-0.5 font-medium">받은 후기</div>
         </button>
       </div>
@@ -304,11 +310,11 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                 <span>이웃들이 선물한 칭찬 뱃지</span>
               </h4>
               <span className="text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
-                총 12회 획득
+                {myReviews.length ? '예시 배지' : '0회'}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {myReviews.length === 0 ? <p className="text-xs text-gray-400">아직 받은 칭찬 배지가 없어요.</p> : <div className="grid grid-cols-2 gap-2">
               <div className="p-3 bg-[#f8f9fc] rounded-2xl flex items-center gap-2.5">
                 <span className="text-xl">⏰</span>
                 <div>
@@ -340,7 +346,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                   <span className="text-[10.5px] text-gray-400">2회 획득</span>
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* Blind Unlocked Reviews List */}
@@ -353,9 +359,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
               <span className="text-xs text-gray-400">상호 공개 완료</span>
             </div>
 
-            {reviews.length > 0 ? (
+            {myReviews.length > 0 ? (
               <div className="space-y-3">
-                {reviews.map((rev) => (
+                {myReviews.map((rev) => (
                   <div key={rev.id} className="p-4 bg-[#f8f9fc] rounded-2xl space-y-2 text-xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -391,63 +397,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="space-y-3">
-                {/* Default Sample Reviews */}
-                <div className="p-4 bg-[#f8f9fc] rounded-2xl space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120"
-                        alt="파트너"
-                        className="w-7 h-7 rounded-full object-cover shadow-2xs"
-                      />
-                      <span className="font-bold text-gray-900">이*진</span>
-                      <span className="text-gray-400 text-[11px]">• 3일 전</span>
-                    </div>
-                    <div className="flex items-center gap-0.5 text-amber-500 font-bold bg-white px-2 py-0.5 rounded-md shadow-2xs">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                      <span>5.0</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-lg">
-                      ⏰ 시간 약속 마스터
-                    </span>
-                    <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-lg">
-                      💬 대화가 즐거워요
-                    </span>
-                  </div>
-                  <p className="text-gray-700 leading-relaxed font-medium">
-                    "처음 해보는 1:1 디저트 투어였는데 너무 친절하게 대해주셔서 어색함 전혀 없이 즐겁게 다녀왔습니다!"
-                  </p>
-                </div>
-
-                <div className="p-4 bg-[#f8f9fc] rounded-2xl space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120"
-                        alt="파트너"
-                        className="w-7 h-7 rounded-full object-cover shadow-2xs"
-                      />
-                      <span className="font-bold text-gray-900">박*민</span>
-                      <span className="text-gray-400 text-[11px]">• 1주일 전</span>
-                    </div>
-                    <div className="flex items-center gap-0.5 text-amber-500 font-bold bg-white px-2 py-0.5 rounded-md shadow-2xs">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                      <span>5.0</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <span className="text-[10px] font-bold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-lg">
-                      😊 친절하고 편안해요
-                    </span>
-                  </div>
-                  <p className="text-gray-700 leading-relaxed font-medium">
-                    "매너가 정말 좋으세요. 시간 약속도 칼같이 지켜주셔서 덕분에 기분 좋은 하루였습니다."
-                  </p>
-                </div>
-              </div>
+              <p className="text-xs text-gray-400">아직 공개된 동행 후기가 없어요.</p>
             )}
           </div>
         </div>

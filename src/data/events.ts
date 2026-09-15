@@ -1,6 +1,12 @@
 import type { EventBannerItem } from '../types';
 import { dateKey, daysInMonth, weeksInMonth } from '../utils/calendar';
 
+/** Finds an example event by its id (`sample-YYYY-M-week-index`), whatever month it belongs to. */
+export function eventById(id: string | undefined): EventBannerItem | undefined {
+  const match = id?.match(/^sample-(\d{4})-(\d{1,2})-\d+-\d+$/);
+  return match ? sampleEventsForMonth(Number(match[1]), Number(match[2])).find(event => event.id === id) : undefined;
+}
+
 // Example records only. A future collector can supply this same date-based contract.
 export function sampleEventsForMonth(year: number, month: number): EventBannerItem[] {
   const kinds: EventBannerItem['kind'][] = ['팝업', '전시', '축제', '공연'];

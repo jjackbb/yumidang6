@@ -1,6 +1,6 @@
 # 신청·대화 연결 인수인계 — 2026-09-15
 
-이 문서는 1차 구현 기록이다. 이후 [2차 공고 변경·종료 연결](../post-lifecycle/HANDOFF.md)을 반영했다. 현재 순서는 [PLAN](PLAN.md)을 따른다.
+이 문서는 1차 구현 기록이다. 이후 [2차 공고 변경·종료 연결](../post-lifecycle/HANDOFF.md)을 반영했다. 현재 작업은 [남은 초안 전체 선택](../design-selection/SKETCHES.html)이며, 사용자 선택 후 Codex가 설계하고 Claude가 묶음 구현하는 [최신 작업 기준](../design-selection/WORKFLOW.md)을 따른다.
 
 ## 결정과 구현
 

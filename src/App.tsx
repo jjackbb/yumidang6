@@ -38,19 +38,26 @@ import { ExploreView } from './components/ExploreView';
 import { ChatView } from './components/ChatView';
 import { ChatListView } from './components/ChatListView';
 import { UserProfileModal } from './components/UserProfileModal';
+import { ProfileEditor, type ProfilePatch } from './components/ProfileEditor';
+import { BlockUserDialog, ReportUserDialog } from './components/SafetyEntryDialogs';
+import { avatarSrc, missingProfileSteps, profileStepLabel, type ProfileStep } from './utils/profile';
+import { isSavedBy } from './utils/relations';
 import { publicProfileForMember } from './data/publicProfiles';
 import { CancellationDialog, LifecycleConfirmDialog, ScheduleConflictDialog } from './components/LifecycleDialogs';
 import { cancelAppointment as cancelConfirmedAppointment, closePost, conditionsOf, confirmChangedConditions, expirePosts, isConfirmedAppointment, isOpenRequest, isRecruiting, overlappingAppointments, recruitmentDeadline, updateRecruitingPost, type LifecycleState } from './utils/postLifecycle';
 import { acceptRequest, createRequestRoom, requestRoomId, roomAccess } from './utils/conversations';
 import { MyPageView } from './components/MyPageView';
+import { DemoControlPanel } from './components/DemoControlPanel';
+import { createSeedData } from './data/prototypeSeed';
+import { NEW_USER_SUGAR } from './data/publicProfiles';
+import { demoNow, isDemoMode } from './utils/demoMode';
+import { browserStorage, clearPrototype, loadPrototype, savePrototype, storageIssueMessage, STORAGE_KEYS, type PrototypeData, type StorageIssue } from './utils/prototypeStore';
+import { canViewSecretLocation, visibleNotifications } from './utils/access';
 
-import {
-  mockAppointments,
-  mockCategories,
-  mockMeetupPosts,
-  mockNotifications,
-} from './data/mockData';
-import { Appointment, CategoryItem, EventBannerItem, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem, ChatRoom, PublicUserProfile, ScheduleProposal } from './types';
+import { mockCategories } from './data/mockData';
+import { Appointment, AppointmentReview, BlockRelation, CategoryItem, ChatMember, CompletionConfirmation, DemoSettings, EventBannerItem, FavoriteFriend, Invitation, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem, NotificationSettings, ChatRoom, ScheduleProposal } from './types';
+
+const NAV_TABS: NavTab[] = ['home', 'explore', 'chat', 'me'];
 
 type ConflictAction =
   | { kind: 'join'; postId: string; message: string }
@@ -59,13 +66,43 @@ type ConflictAction =
   | { kind: 'create'; post: MeetupPost };
 
 export default function App() {
-  // Navigation state
-  const [activeTab, setActiveTab] = useState<NavTab>('home');
+  // `?demo=1` is fixed for the page lifetime and uses its own storage key.
+  const [demoMode] = useState(isDemoMode);
+  const storageKey = demoMode ? STORAGE_KEYS.demo : STORAGE_KEYS.app;
+  const [boot] = useState(() => {
+    const loaded = loadPrototype(browserStorage(), storageKey);
+    return { data: loaded.data || createSeedData(), issue: loaded.issue };
+  });
+  const [storageIssue, setStorageIssue] = useState<StorageIssue | null>(boot.issue || null);
+  // Unreadable saved data is kept untouched until the user retries or resets.
+  const [autosave, setAutosave] = useState(boot.issue !== 'corrupt' && boot.issue !== 'version');
 
-  // User Auth state (Supabase Auth 연동)
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  // Navigation state
+  const [activeTab, setActiveTab] = useState<NavTab>(() => NAV_TABS.includes(boot.data.ui.activeTab as NavTab) ? boot.data.ui.activeTab as NavTab : 'home');
+
+  // User Auth state (Supabase Auth 연동, 체험 모드에서는 예시 계정 저장소)
+  const [users, setUsers] = useState<CurrentUser[]>(boot.data.users);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() =>
+    demoMode ? boot.data.users.find(user => user.id === boot.data.activeUserId) || null : null);
+  const [demoSettings, setDemoSettings] = useState<DemoSettings>(boot.data.demo);
+  const [favorites, setFavorites] = useState<FavoriteFriend[]>(boot.data.favorites);
+  const [invitations, setInvitations] = useState<Invitation[]>(boot.data.invitations);
+  const [completions, setCompletions] = useState<CompletionConfirmation[]>(boot.data.completions);
+  const [appointmentReviews, setAppointmentReviews] = useState<AppointmentReview[]>(boot.data.appointmentReviews);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings[]>(boot.data.notificationSettings);
+  const [blocks, setBlocks] = useState<BlockRelation[]>(boot.data.blocks);
+  /** Current prototype time: real clock in service mode, shifted clock in the demo. */
+  const clock = () => demoNow(demoMode ? demoSettings.timeOffsetMs : 0);
 
   useEffect(() => {
+    if (demoMode && currentUser) setUsers(prev => prev.some(user => user.id === currentUser.id)
+      ? prev.map(user => user.id === currentUser.id ? currentUser : user)
+      : [...prev, currentUser]);
+  }, [currentUser]);
+
+  useEffect(() => {
+    // Demo isolation: no Supabase session restore or auth listener.
+    if (demoMode) return;
     // 1. 초기 세션 확인
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -83,7 +120,7 @@ export default function App() {
           gender: meta.gender || 'female',
           ageGroup: meta.ageGroup || '20대',
           neighborhood: meta.neighborhood || '서울 강남구 역삼동',
-          sugarContent: 50,
+          sugarContent: NEW_USER_SUGAR,
           isPhoneVerified: false,
           isKycVerified: false,
           avatar: meta.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -110,7 +147,7 @@ export default function App() {
           gender: meta.gender || 'female',
           ageGroup: meta.ageGroup || '20대',
           neighborhood: meta.neighborhood || '서울 강남구 역삼동',
-          sugarContent: 50,
+          sugarContent: NEW_USER_SUGAR,
           isPhoneVerified: false,
           isKycVerified: false,
           avatar: meta.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -143,11 +180,12 @@ export default function App() {
   const [selectedPostForJoin, setSelectedPostForJoin] = useState<MeetupPost | null>(null);
   const [requestTab, setRequestTab] = useState<RequestTab>('sent');
   const [isEventsOpen, setIsEventsOpen] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(clock);
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60_000);
+    setNow(clock());
+    const timer = setInterval(() => setNow(clock()), 60_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [demoSettings.timeOffsetMs]);
   const today = koreaDateParts(now);
   const eventBanners = sampleEventsForMonth(today.year, today.month);
 
@@ -241,34 +279,7 @@ export default function App() {
     }
   }, [isJoinRequestModalOpen]);
 
-  const [reviews, setReviews] = useState<ReviewItem[]>([
-    {
-      id: 'rev-sample-1',
-      appointmentId: 'apt-sample-1',
-      appointmentTitle: '삼청동 한옥 카페 디저트 투어 1:1 동행',
-      reviewerName: '이*진',
-      reviewerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120',
-      targetName: '나',
-      rating: 5,
-      badges: ['시간 약속을 칼같이 지켜요', '대화가 편안하고 즐거워요'],
-      comment: '처음 해보는 1:1 디저트 투어였는데 너무 친절하게 대해주셔서 어색함 전혀 없이 즐겁게 다녀왔습니다!',
-      isBlind: false,
-      createdAt: '3일 전',
-    },
-    {
-      id: 'rev-sample-2',
-      appointmentId: 'apt-sample-2',
-      appointmentTitle: '주말 성수동 서울숲 산책 1:1 동행',
-      reviewerName: '박*민',
-      reviewerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120',
-      targetName: '나',
-      rating: 5,
-      badges: ['친절하고 배려심이 넘쳐요', '시간 약속을 칼같이 지켜요'],
-      comment: '매너가 정말 좋으세요. 시간 약속도 칼같이 지켜주셔서 덕분에 기분 좋은 하루였습니다.',
-      isBlind: false,
-      createdAt: '1주일 전',
-    },
-  ]);
+  const [reviews, setReviews] = useState<ReviewItem[]>(boot.data.reviews);
 
   // Phase 6: Pro Paid Companion & Escrow States
   const [isEscrowModalOpen, setIsEscrowModalOpen] = useState(false);
@@ -289,50 +300,18 @@ export default function App() {
     },
   ]);
 
-  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([
-    {
-      id: 'req-init-1',
-      postId: 'post-demo-host',
-      hostId: DEMO_USER_ID,
-      postTitle: '성수동 디저트 오마카세 같이 가실 분',
-      requesterId: 'user-req-1',
-      requesterName: '김*수',
-      requesterAvatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80',
-      requesterSugar: 78,
-      message: '안녕하세요! 디저트 카페 투어 정말 좋아하는데 혼자 가기 아쉬웠어요. 약속 시간 잘 지키겠습니다 :)',
-      status: 'pending',
-      createdAt: '10분 전',
-    },
-    {
-      id: 'req-init-2',
-      postId: 'post-demo-host',
-      hostId: DEMO_USER_ID,
-      postTitle: '성수동 디저트 오마카세 같이 가실 분',
-      requesterId: 'user-req-2',
-      requesterName: '이*은',
-      requesterAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
-      requesterSugar: 85,
-      message: '성수동 거주 중인 30대입니다. 매너 있게 좋은 대화 나누며 달콤한 시간 보내요!',
-      status: 'pending',
-      createdAt: '30분 전',
-    },
-    {
-      id: 'req-sent-demo', postId: 'post-exhibition-open', hostId: 'user-seojin', postTitle: '주말 사진전 함께 보고 감상 나눠요',
-      requesterId: DEMO_USER_ID, requesterName: '조*미', requesterAvatar: mockAppointments[0].partnerAvatar,
-      requesterSugar: 50, message: '사진전을 천천히 보고 감상을 나누고 싶어요!', status: 'pending', createdAt: '1시간 전',
-    },
-  ]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>(boot.data.requests);
 
   // App data states
-  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
-  const [activeAppointmentId, setActiveAppointmentId] = useState(mockAppointments[0].id);
+  const [appointments, setAppointments] = useState<Appointment[]>(boot.data.appointments);
+  const [activeAppointmentId, setActiveAppointmentId] = useState(boot.data.appointments[0]?.id || '');
   const appointment = appointments.find(item => item.id === activeAppointmentId) || appointments[0];
   const reviewAppointment = appointments.find(item => item.id === reviewAppointmentId) || appointment;
   const reviewKey = (id: string) => `${currentUser?.id}:${id}`;
   useEffect(() => {
-    const delay = Math.min(...appointments.map(item => Date.parse(item.endsAt || '') - Date.now()).filter(value => value > 0));
+    const delay = Math.min(...appointments.map(item => Date.parse(item.endsAt || '') - clock().getTime()).filter(value => value > 0));
     if (!Number.isFinite(delay)) return;
-    const timer = setTimeout(() => setNow(new Date()), Math.min(delay, 2_147_483_647));
+    const timer = setTimeout(() => setNow(clock()), Math.min(delay, 2_147_483_647));
     return () => clearTimeout(timer);
   }, [appointments, now]);
   const setAppointment = (next: Appointment | ((previous: Appointment) => Appointment)) => {
@@ -347,33 +326,19 @@ export default function App() {
     setActiveAppointmentId(item.id);
     setIsDashboardOpen(true);
   };
-  const [meetupPosts, setMeetupPosts] = useState<MeetupPost[]>(() =>
-    mockMeetupPosts.map((p) => ({
-      ...p,
-      maxMembers: 2, recruitmentEndsAt: p.recruitmentEndsAt || p.startsAt,
-      closedReason: mockAppointments.some(item => item.postId === p.id) ? 'matched' : p.closedReason,
-      status: mockAppointments.some(item => item.postId === p.id) ? 'closed' : p.status,
-      currentMembers: p.status === 'closed' || mockAppointments.some(item => item.postId === p.id) ? 2 : 1,
-    }))
-  );
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>(() => [
-    ...joinRequests.flatMap(request => { const post = meetupPosts.find(item => item.id === request.postId); return post ? [createRequestRoom(request, post)] : []; }),
-    ...mockAppointments.map(item => {
-      const post = meetupPosts.find(post => post.id === item.postId);
-      const partnerId = item.participantIds?.find(id => id !== DEMO_USER_ID) || `partner-${item.id}`;
-      return { id: `room-${item.id}`, appointmentId: item.id, postId: item.postId || '', postTitle: post?.title || item.title, draft: '',
-        members: [{ id: DEMO_USER_ID, displayName: '조*미', avatar: mockAppointments[0].partnerAvatar }, { id: partnerId, displayName: post?.author || item.partnerName, avatar: post?.avatar || item.partnerAvatar }],
-        messages: [{ id: `system-${item.id}`, senderId: 'system', text: `확정된 동행입니다. ${post?.title || item.title}의 일정과 장소를 여기서 확인해요.`, createdAt: new Date().toISOString(), isSample: true }],
-      };
-    }),
-  ]);
+  const [meetupPosts, setMeetupPosts] = useState<MeetupPost[]>(boot.data.posts);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>(boot.data.rooms);
   const [postAction, setPostAction] = useState<{ id: string; mode: 'closed' | 'deleted' } | null>(null);
   const [cancellationTarget, setCancellationTarget] = useState<{ id: string; kind: 'request' | 'appointment'; title: string } | null>(null);
   const [conflictPrompt, setConflictPrompt] = useState<{ conflicts: Appointment[]; action: ConflictAction } | null>(null);
   const [lifecycleNotice, setLifecycleNotice] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
-  const [selectedChatProfile, setSelectedChatProfile] = useState<PublicUserProfile | null>(null);
+  // Profiles are opened by user id and rebuilt on every render, so edits and saves show everywhere at once.
+  const [selectedChatProfile, setSelectedChatProfile] = useState<ChatMember | null>(null);
+  const [profileEditor, setProfileEditor] = useState<{ mode: 'setup' | 'edit'; step?: ProfileStep; reason?: string } | null>(null);
+  const [isProfilePreviewOpen, setIsProfilePreviewOpen] = useState(false);
+  const [safetyDialog, setSafetyDialog] = useState<{ kind: 'report' | 'block'; member: ChatMember } | null>(null);
   const matchingLocks = useRef(new Set<string>());
   const proposalLocks = useRef(new Set<string>());
   const activeRoom = chatRooms.find(room => room.id === activeRoomId && room.members.some(member => member.id === currentUser?.id));
@@ -383,7 +348,7 @@ export default function App() {
   const activePartner = activeRoom?.members.find(member => member.id !== currentUser?.id);
   const myAppointments = appointments.filter(item => currentUser && item.participantIds?.includes(currentUser.id));
   const openRoom = (room: ChatRoom) => {
-    if (!roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts).canView) return;
+    if (!roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canView) return;
     setActiveRoomId(room.id);
     if (room.appointmentId) setActiveAppointmentId(room.appointmentId);
     setActiveTab('chat');
@@ -395,14 +360,14 @@ export default function App() {
   };
   const openRequestProfile = (id: string) => {
     const room = chatRooms.find(room => room.requestId === id);
-    if (!room || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts).canView) return;
+    if (!room || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canView) return;
     const member = room.members.find(member => member.id !== currentUser?.id);
-    if (member) setSelectedChatProfile(publicProfileForMember(member, currentUser));
+    if (member) setSelectedChatProfile(member);
   };
   const updateRoomDraft = (id: string, draft: string) => setChatRooms(prev => prev.map(room => room.id === id && room.members.some(member => member.id === currentUser?.id) ? { ...room, draft } : room));
   const sendRoomMessage = (id: string, text: string, sample = false) => {
     const room = chatRooms.find(room => room.id === id);
-    if (!room || !text.trim() || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts).canSend || (sample && currentUser?.id !== DEMO_USER_ID)) return;
+    if (!room || !text.trim() || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canSend || (sample && currentUser?.id !== DEMO_USER_ID)) return;
     const senderId = sample ? room.members.find(member => member.id !== currentUser!.id)!.id : currentUser!.id;
     const message = { id: crypto.randomUUID(), senderId, text: text.trim(), createdAt: new Date().toISOString(), isSample: sample };
     setChatRooms(prev => prev.map(item => item.id === id ? { ...item, draft: sample ? item.draft : '', messages: [...item.messages, message] } : item));
@@ -411,7 +376,7 @@ export default function App() {
   const proposeRoomSchedule = (id: string, proposal: ScheduleProposal) => {
     const room = chatRooms.find(room => room.id === id);
     const target = appointments.find(item => item.id === room?.appointmentId);
-    if (!room || !target || target.status === '동행 완료' || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts).canSend || !isValidMeetupRange(proposal.startsAt, proposal.endsAt)) return;
+    if (!room || !target || target.status === '동행 완료' || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canSend || !isValidMeetupRange(proposal.startsAt, proposal.endsAt)) return;
     if (room.messages.some(item => item.proposal?.status === 'pending')) { alert('먼저 보낸 일정 변경 제안의 응답을 기다려 주세요.'); return; }
     setChatRooms(prev => prev.map(item => item.id === id ? { ...item, messages: [...item.messages, { id: crypto.randomUUID(), senderId: currentUser!.id, text: '일정·장소 변경을 제안했어요.', createdAt: new Date().toISOString(), proposal }] } : item));
   };
@@ -420,7 +385,7 @@ export default function App() {
     const message = room?.messages.find(item => item.id === messageId);
     const proposal = message?.proposal;
     const target = appointments.find(item => item.id === room?.appointmentId);
-    if (!room || !target || target.status === '동행 완료' || !proposal || proposal.status !== 'pending' || proposalLocks.current.has(messageId) || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts).canSend) return;
+    if (!room || !target || target.status === '동행 완료' || !proposal || proposal.status !== 'pending' || proposalLocks.current.has(messageId) || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canSend) return;
     if (sample ? currentUser?.id !== DEMO_USER_ID : message.senderId === currentUser?.id) return;
     if (accepted && !isValidMeetupRange(proposal.startsAt, proposal.endsAt)) return;
     if (accepted && !ignoreConflict && warnConflict({ kind: 'proposal', roomId, messageId, accepted, sample }, target.participantIds || [], proposal.startsAt, proposal.endsAt, target.id)) return;
@@ -432,18 +397,63 @@ export default function App() {
     setChatRooms(prev => prev.map(item => item.id === roomId ? { ...item, messages: [...item.messages.map(value => value.id === messageId ? { ...value, proposal: { ...proposal, status: accepted ? 'accepted' as const : 'rejected' as const } } : value), { id: crypto.randomUUID(), senderId: 'system', text: accepted ? '일정 변경이 수락됐어요. 새 약속을 확인해 주세요.' : '일정 변경이 거절됐어요. 기존 약속을 유지합니다.', createdAt: new Date().toISOString(), isSample: sample }] } : item));
     setNotifications(prev => [{ id: `notif-${crypto.randomUUID()}`, title: accepted ? '약속 변경 완료' : '약속 변경 거절', description: accepted ? proposal.newDateTime : '기존 일정이 유지됩니다.', type: 'matching', roomId, time: '방금', read: false }, ...prev]);
   };
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => [
-    ...joinRequests.filter(request => request.hostId === DEMO_USER_ID).map((request): NotificationItem => ({
-      id: `notif-${request.id}`,
-      title: `${request.requesterName}님이 동행을 신청했어요`,
-      description: `"${request.postTitle}" 공고의 신청 내용을 확인해 보세요.`,
-      time: request.createdAt,
-      read: false,
-      type: 'matching',
-      action: 'match_requests', roomId: requestRoomId(request.id),
-    })),
-    ...mockNotifications,
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(boot.data.notifications);
+
+  // Save every shared record under the versioned key (tab changes, reloads, window close).
+  const snapshot = (): PrototypeData => ({
+    posts: meetupPosts, requests: joinRequests, rooms: chatRooms, appointments, notifications, reviews,
+    favorites, invitations, completions, appointmentReviews, notificationSettings, blocks,
+    // The signed-in record is the newest copy; the users list catches up one render later.
+    users: demoMode && currentUser ? (users.some(user => user.id === currentUser.id) ? users.map(user => user.id === currentUser.id ? currentUser : user) : [...users, currentUser]) : users,
+    activeUserId: demoMode ? currentUser?.id || null : null, demo: demoSettings, ui: { activeTab },
+  });
+  const persist = () => {
+    const result = savePrototype(browserStorage(), storageKey, snapshot(), clock());
+    setStorageIssue('issue' in result ? result.issue : null);
+  };
+  useEffect(() => {
+    if (autosave) persist();
+  }, [autosave, meetupPosts, joinRequests, chatRooms, appointments, notifications, reviews, favorites, invitations, completions, appointmentReviews, notificationSettings, blocks, users, currentUser, demoSettings, activeTab]);
+  const applyData = (data: PrototypeData, keepUserId?: string) => {
+    setMeetupPosts(data.posts); setJoinRequests(data.requests); setChatRooms(data.rooms); setAppointments(data.appointments);
+    setNotifications(data.notifications); setReviews(data.reviews); setFavorites(data.favorites); setInvitations(data.invitations);
+    setCompletions(data.completions); setAppointmentReviews(data.appointmentReviews); setNotificationSettings(data.notificationSettings);
+    setBlocks(data.blocks); setUsers(data.users); setDemoSettings(data.demo); setNow(demoNow(demoMode ? data.demo.timeOffsetMs : 0));
+    setActiveAppointmentId(data.appointments[0]?.id || '');
+    setActiveTab(NAV_TABS.includes(data.ui.activeTab as NavTab) ? data.ui.activeTab as NavTab : 'home');
+    if (demoMode) setCurrentUser(data.users.find(user => user.id === (keepUserId || data.activeUserId)) || null);
+    setActiveRoomId(null); setIsDashboardOpen(false); setIsReviewModalOpen(false); setSelectedChatProfile(null);
+    setSelectedPostForDetail(null); setIsNotificationsOpen(false); submissionLocks.current.clear(); settlementLocks.current.clear(); matchingLocks.current.clear(); proposalLocks.current.clear();
+    setSubmittedReviews({});
+  };
+  const retryStorage = () => {
+    if (autosave) { persist(); return; }
+    const loaded = loadPrototype(browserStorage(), storageKey);
+    if (loaded.data) { applyData(loaded.data); setAutosave(true); setStorageIssue(null); }
+    else if (!loaded.issue) { setAutosave(true); setStorageIssue(null); }
+    else setStorageIssue(loaded.issue);
+  };
+  /** Explicit reset of this mode's key only; the other mode's saved data is untouched. */
+  const resetPrototype = () => {
+    clearPrototype(browserStorage(), storageKey);
+    const seed = createSeedData();
+    applyData(seed, demoMode && currentUser && seed.users.some(user => user.id === currentUser.id) ? currentUser.id : undefined);
+    setAutosave(true); setStorageIssue(null);
+    setLifecycleNotice(demoMode ? '체험 데이터를 예시 상태로 초기화했어요.' : '저장된 프로토타입 데이터를 초기화했어요.');
+  };
+  const changeTimeOffset = (offsetMs: number) => {
+    if (!demoMode || !Number.isFinite(offsetMs)) return;
+    setDemoSettings(prev => ({ ...prev, timeOffsetMs: offsetMs }));
+    setNow(demoNow(offsetMs));
+  };
+  const switchDemoUser = (id: string | null) => {
+    if (!demoMode) return;
+    const next = users.find(user => user.id === id);
+    setCurrentUser(next ? { ...next, isLoggedIn: true } : null);
+    setProfileEditor(null); setIsProfilePreviewOpen(false); setSafetyDialog(null);
+    setActiveRoomId(null); setIsDashboardOpen(false); setIsReviewModalOpen(false); setSelectedChatProfile(null);
+    setIsJoinRequestModalOpen(false); setIsCreateModalOpen(false); setEditingPost(null); setRequestTab('sent');
+  };
 
   const lifecycleState = (): LifecycleState => ({ posts: meetupPosts, requests: joinRequests, rooms: chatRooms, appointments, notifications });
   const applyLifecycle = (next: LifecycleState | null) => {
@@ -454,9 +464,9 @@ export default function App() {
   useEffect(() => {
     const next = expirePosts(lifecycleState(), now);
     if (next) applyLifecycle(next);
-    const delay = Math.min(...meetupPosts.filter(post => post.status === 'recruiting').map(post => Date.parse(recruitmentDeadline(post) || '') - Date.now()).filter(ms => ms > 0));
+    const delay = Math.min(...meetupPosts.filter(post => post.status === 'recruiting').map(post => Date.parse(recruitmentDeadline(post) || '') - clock().getTime()).filter(ms => ms > 0));
     if (!Number.isFinite(delay)) return;
-    const timer = setTimeout(() => setNow(new Date()), Math.min(delay, 2_147_483_647));
+    const timer = setTimeout(() => setNow(clock()), Math.min(delay, 2_147_483_647));
     return () => clearTimeout(timer);
   }, [meetupPosts, now]);
   useEffect(() => {
@@ -469,10 +479,20 @@ export default function App() {
     setConflictPrompt({ conflicts, action }); return true;
   };
 
-  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+  const myNotifications = visibleNotifications(notifications, currentUser?.id);
+  const unreadNotifCount = myNotifications.filter((n) => !n.read).length;
 
   const handleMarkAllNotificationsAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const profileMissing = currentUser ? missingProfileSteps(currentUser) : [];
+  /** Requests and posts need the basic profile; sends the member back to the first missing step. */
+  const requireCompleteProfile = (action: string) => {
+    if (!profileMissing.length) return true;
+    // Shown inside the editor so the notice never covers its buttons.
+    setProfileEditor({ mode: 'setup', step: profileMissing[0], reason: `${action} 전에 프로필을 완성해 주세요. 남은 단계: ${profileMissing.map(step => profileStepLabel[step]).join(' · ')}` });
+    return false;
   };
 
   const handleOpenCreateMeetup = () => {
@@ -480,12 +500,13 @@ export default function App() {
       setIsAuthModalOpen(true);
       return;
     }
+    if (!requireCompleteProfile('공고 작성')) return;
     setEditingPost(null);
     setIsCreateModalOpen(true);
   };
 
   const handleCreateMeetup = (newPost: MeetupPost, ignoreConflict = false) => {
-    if (!currentUser || newPost.authorId !== currentUser.id || !isRecruiting(newPost)) return false;
+    if (!currentUser || newPost.authorId !== currentUser.id || !isRecruiting(newPost, clock())) return false;
     if (!ignoreConflict && warnConflict({ kind: 'create', post: newPost }, [currentUser.id], newPost.startsAt, newPost.endsAt)) return false;
     setMeetupPosts((prev) => [newPost, ...prev]);
     trackFunnelEvent({
@@ -511,7 +532,7 @@ export default function App() {
   };
 
   const handleUpdatePost = (updatedPost: MeetupPost) => {
-    if (!applyLifecycle(updateRecruitingPost(lifecycleState(), updatedPost, currentUser?.id))) return false;
+    if (!applyLifecycle(updateRecruitingPost(lifecycleState(), updatedPost, currentUser?.id, clock()))) return false;
     setSelectedPostForDetail(updatedPost); setEditingPost(null);
     return true;
   };
@@ -519,26 +540,26 @@ export default function App() {
   const handleDeletePost = (postId: string) => setPostAction({ id: postId, mode: 'deleted' });
   const confirmPostAction = () => {
     if (!postAction) return;
-    const succeeded = applyLifecycle(closePost(lifecycleState(), postAction.id, postAction.mode, currentUser?.id));
+    const succeeded = applyLifecycle(closePost(lifecycleState(), postAction.id, postAction.mode, currentUser?.id, clock()));
     if (succeeded) setLifecycleNotice(postAction.mode === 'deleted' ? '공고를 삭제했어요. 이전 신청과 대화 기록은 남아 있어요.' : '모집을 마감했어요. 미확정 신청도 함께 종료됐어요.');
     setPostAction(null);
   };
   const handleEditPost = (post: MeetupPost) => {
-    if (post.authorId !== currentUser?.id || !isRecruiting(post)) { setLifecycleNotice('모집 중인 본인 공고만 수정할 수 있어요. 확정 약속은 대화방에서 변경을 제안해 주세요.'); return; }
+    if (post.authorId !== currentUser?.id || !isRecruiting(post, clock())) { setLifecycleNotice('모집 중인 본인 공고만 수정할 수 있어요. 확정 약속은 대화방에서 변경을 제안해 주세요.'); return; }
     setEditingPost(post); setSelectedPostForDetail(null); setIsCreateModalOpen(true);
   };
   const handleReconfirm = (requestId: string, revision: number, agree: boolean, simulate = false) => {
     const request = joinRequests.find(item => item.id === requestId);
     if (!request || !currentUser || (simulate && (currentUser.id !== DEMO_USER_ID || request.hostId !== currentUser.id))) return;
-    applyLifecycle(confirmChangedConditions(lifecycleState(), requestId, revision, agree, simulate ? request.requesterId : currentUser.id));
+    applyLifecycle(confirmChangedConditions(lifecycleState(), requestId, revision, agree, simulate ? request.requesterId : currentUser.id, clock()));
   };
   const simulatePostChange = (requestId: string) => {
     const request = joinRequests.find(item => item.id === requestId);
     const post = meetupPosts.find(item => item.id === request?.postId);
-    if (currentUser?.id !== DEMO_USER_ID || request?.requesterId !== currentUser.id || !request || !isOpenRequest(request) || !post || !isRecruiting(post)) return;
+    if (currentUser?.id !== DEMO_USER_ID || request?.requesterId !== currentUser.id || !request || !isOpenRequest(request) || !post || !isRecruiting(post, clock())) return;
     const startsAt = new Date(Date.parse(post.startsAt!) + 3600000).toISOString();
     const endsAt = new Date(Date.parse(post.endsAt!) + 3600000).toISOString();
-    applyLifecycle(updateRecruitingPost(lifecycleState(), { ...post, startsAt, endsAt, time: formatMeetupRange(startsAt, endsAt), publicLocation: '변경된 공개 만남 장소 · 시연' }, post.authorId));
+    applyLifecycle(updateRecruitingPost(lifecycleState(), { ...post, startsAt, endsAt, time: formatMeetupRange(startsAt, endsAt), publicLocation: '변경된 공개 만남 장소 · 시연' }, post.authorId, clock()));
   };
 
   // Phase 3: Initiate 1:1 Join Request Modal
@@ -551,7 +572,8 @@ export default function App() {
       alert('본인이 작성한 동행 공고에는 참여 신청할 수 없습니다.');
       return;
     }
-    if (!isRecruiting(post) || post.currentMembers >= 2) {
+    if (!requireCompleteProfile('동행 신청')) return;
+    if (!isRecruiting(post, clock()) || post.currentMembers >= 2) {
       alert('이미 1:1 매칭이 마감된(2/2명) 공고입니다.');
       return;
     }
@@ -572,7 +594,7 @@ export default function App() {
   // Phase 3: Submit Join Request
   const handleSendJoinRequest = (postId: string, message: string, ignoreConflict = false) => {
     const post = activeMeetupPosts.find((p) => p.id === postId);
-    if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || !isRecruiting(post) || !message.trim()) return false;
+    if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || !isRecruiting(post, clock()) || !message.trim()) return false;
     if (joinRequests.some(request => request.postId === post.id && request.requesterId === currentUser.id && ['pending', 'reconfirming', 'accepted'].includes(request.status))) {
       alert('이미 신청한 동행이에요. Me에서 신청 상태를 확인해 주세요.');
       return false;
@@ -594,7 +616,7 @@ export default function App() {
       postTitle: post.title,
       requesterId: currentUser.id,
       requesterName: currentUser.maskedName,
-      requesterAvatar: currentUser.avatar,
+      requesterAvatar: avatarSrc(currentUser.avatar),
       requesterSugar: currentUser.sugarContent,
       message,
       status: 'pending', conditionSnapshot: conditionsOf(post),
@@ -629,7 +651,7 @@ export default function App() {
     if (!targetReq || !currentUser) return;
     if (simulateHost && (currentUser.id !== DEMO_USER_ID || targetReq.requesterId !== currentUser.id)) return;
     const targetPost = meetupPosts.find(item => item.id === targetReq.postId);
-    const nextRequests = acceptRequest(joinRequests, targetPost, requestId, simulateHost ? targetReq.hostId : currentUser.id);
+    const nextRequests = acceptRequest(joinRequests, targetPost, requestId, simulateHost ? targetReq.hostId : currentUser.id, clock());
     if (!nextRequests || !targetPost || matchingLocks.current.has(targetReq.postId)) return;
     if (!ignoreConflict && warnConflict({ kind: 'accept', requestId, simulateHost }, [targetReq.hostId, targetReq.requesterId], targetPost.startsAt, targetPost.endsAt)) return;
     matchingLocks.current.add(targetReq.postId);
@@ -673,7 +695,7 @@ export default function App() {
   };
   const confirmCancellation = (reason: string) => {
     if (!cancellationTarget) return false;
-    const success = cancellationTarget.kind === 'request' ? endRequest(cancellationTarget.id, 'cancelled', reason) : applyLifecycle(cancelConfirmedAppointment(lifecycleState(), cancellationTarget.id, reason, currentUser?.id));
+    const success = cancellationTarget.kind === 'request' ? endRequest(cancellationTarget.id, 'cancelled', reason) : applyLifecycle(cancelConfirmedAppointment(lifecycleState(), cancellationTarget.id, reason, currentUser?.id, clock()));
     if (success) setCancellationTarget(null);
     return success;
   };
@@ -720,19 +742,19 @@ export default function App() {
 
   // Phase 5: Mutual Blind Review Submit & Sugar Settling
   const handleOpenReview = (target: Appointment) => {
-    if (!completionAvailability(target, currentUser?.id).canReview) return;
+    if (!completionAvailability(target, currentUser?.id, clock()).canReview) return;
     setReviewAppointmentId(target.id);
     setIsReviewModalOpen(true);
   };
 
   const handleCompleteAppointment = (target: Appointment) => {
-    if (!completionAvailability(target, currentUser?.id).canComplete) return;
+    if (!completionAvailability(target, currentUser?.id, clock()).canComplete) return;
     setAppointments(prev => prev.map(item => item.id === target.id ? { ...item, status: '동행 완료', dDay: '완료됨' } : item));
   };
 
   const handleSubmitReview = (reviewPayload: { rating: number; badges: string[]; comment: string }) => {
     const key = reviewKey(reviewAppointment.id);
-    if (!completionAvailability(reviewAppointment, currentUser?.id).canReview || submissionLocks.current.has(key)) return false;
+    if (!completionAvailability(reviewAppointment, currentUser?.id, clock()).canReview || submissionLocks.current.has(key)) return false;
     submissionLocks.current.add(key);
     setSubmittedReviews(prev => ({ ...prev, [key]: reviewPayload }));
     setNotifications((prev) => [
@@ -752,7 +774,7 @@ export default function App() {
   const handleSettleSugar = (delta: number, partnerReview: ReviewItem) => {
     const key = reviewKey(partnerReview.appointmentId);
     const target = appointments.find(item => item.id === partnerReview.appointmentId);
-    if (!target || !completionAvailability(target, currentUser?.id).canReview || !submissionLocks.current.has(key) || settlementLocks.current.has(key)) return false;
+    if (!target || !completionAvailability(target, currentUser?.id, clock()).canReview || !submissionLocks.current.has(key) || settlementLocks.current.has(key)) return false;
     settlementLocks.current.add(key);
     // 1. 당도 정수형 가산
     setCurrentUser((prev) => {
@@ -782,8 +804,15 @@ export default function App() {
     return true;
   };
 
-  const handleAuthSuccess = (newUser: CurrentUser) => {
+  const handleAuthSuccess = (authenticated: CurrentUser, kind: 'signup' | 'signin' = 'signin') => {
+    // In the demo an existing account keeps its saved profile edits.
+    const stored = demoMode ? users.find(user => user.id === authenticated.id) : undefined;
+    const newUser = stored ? { ...stored, isLoggedIn: true } : authenticated;
     setCurrentUser(newUser);
+    if (!demoMode) setUsers(prev => prev.some(user => user.id === newUser.id) ? prev : [...prev, newUser]);
+    // First signup or a login with an unfinished profile continues at the first missing step.
+    const missing = missingProfileSteps(newUser);
+    if (missing.length) setProfileEditor({ mode: 'setup', step: missing[0] });
     if (pendingRoomId && chatRooms.some(room => room.id === pendingRoomId && room.members.some(member => member.id === newUser.id))) {
       setActiveRoomId(pendingRoomId); setActiveTab('chat');
       const room = chatRooms.find(room => room.id === pendingRoomId)!;
@@ -794,9 +823,11 @@ export default function App() {
     setNotifications((prev) => [
       {
         id: 'notif-' + Date.now(),
-        title: '휴대폰 본인인증 완료',
-        description: `${newUser.maskedName}님, 환영합니다! 신뢰할 수 있는 1:1 동행을 시작하세요.`,
-        time: '방금',
+        title: kind === 'signup' ? '가입을 환영해요' : '로그인했어요',
+        description: kind === 'signup'
+          ? `${newUser.maskedName}님, 사진·취미·소개를 채우면 동행을 신청할 수 있어요.`
+          : `${newUser.maskedName}님, 다시 만나서 반가워요.`,
+        time: '방금', createdAt: clock().toISOString(), recipientId: newUser.id,
         read: false,
         type: 'matching',
       },
@@ -804,36 +835,43 @@ export default function App() {
     ]);
   };
 
-  const handleKycSuccess = () => {
-    if (currentUser) {
-      setCurrentUser((prev) => (prev ? { ...prev, isKycVerified: true } : null));
-      setNotifications((prev) => [
-        {
-          id: 'notif-' + Date.now(),
-          title: '공식 KYC 본인확인 완료',
-          description: '프로필에 공식 인증 마크가 부여되었습니다.',
-          time: '방금',
-          read: false,
-          type: 'matching',
-        },
-        ...prev,
-      ]);
+  const commitProfile = (patch: ProfilePatch) => setCurrentUser(prev => prev ? { ...prev, ...patch } : prev);
+  const selfMember = (user: CurrentUser): ChatMember => ({ id: user.id, displayName: user.maskedName, avatar: user.avatar });
+  const toggleFavorite = (targetId: string) => {
+    if (!currentUser || targetId === currentUser.id || blocks.some(item => item.blockerId === currentUser.id && item.blockedId === targetId)) return;
+    // Private one-way save: no notification is created for the target.
+    setFavorites(prev => isSavedBy(currentUser.id, targetId, prev)
+      ? prev.filter(item => !(item.ownerId === currentUser.id && item.targetId === targetId))
+      : [...prev, { ownerId: currentUser.id, targetId, savedAt: clock().toISOString(), notifyNewPosts: true }]);
+  };
+  const activeAppointmentsWith = (targetId: string) => appointments.filter(item =>
+    currentUser && item.participantIds?.includes(currentUser.id) && item.participantIds.includes(targetId) && isConfirmedAppointment(item));
+  const confirmBlock = (member: ChatMember) => {
+    if (!currentUser || member.id === currentUser.id) return;
+    let state: LifecycleState | null = lifecycleState();
+    for (const item of activeAppointmentsWith(member.id)) {
+      const next = cancelConfirmedAppointment(state!, item.id, '차단으로 동행 취소', currentUser.id, clock());
+      if (next) state = next;
     }
+    applyLifecycle(state);
+    setBlocks(prev => prev.some(item => item.blockerId === currentUser.id && item.blockedId === member.id) ? prev : [...prev, { blockerId: currentUser.id, blockedId: member.id, createdAt: clock().toISOString() }]);
+    setSafetyDialog(null);
+    setLifecycleNotice(`${member.displayName}님을 차단했어요. 완료된 동행 기록은 그대로 남아 있어요.`);
   };
 
   const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error('Logout error:', err);
+    if (!demoMode) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error('Logout error:', err);
+      }
     }
     setCurrentUser(null);
+    setProfileEditor(null); setIsProfilePreviewOpen(false); setSafetyDialog(null);
     setActiveRoomId(null); setIsDashboardOpen(false); setIsReviewModalOpen(false); setSelectedChatProfile(null);
   };
 
-  const handleUpdateAvatar = (newAvatar: string) => {
-    setCurrentUser((prev) => (prev ? { ...prev, avatar: newAvatar } : null));
-  };
 
   // Phase 6: Pro Escrow Payment Handlers
   const handleOpenEscrow = (post: MeetupPost) => {
@@ -842,8 +880,9 @@ export default function App() {
     setIsEscrowModalOpen(true);
   };
 
+  const postAuthor = (post: MeetupPost): ChatMember => ({ id: post.authorId || `unknown-${post.id}`, displayName: post.author, avatar: post.avatar });
   const dashboardPartner = chatRooms.find(room => room.appointmentId === appointment.id)?.members.find(member => member.id !== currentUser?.id);
-  const dashboardProfile = dashboardPartner ? publicProfileForMember(dashboardPartner, currentUser) : undefined;
+  const dashboardProfile = dashboardPartner ? publicProfileForMember(dashboardPartner, currentUser, users) : undefined;
   const completionActionsFor = (target: Appointment) => ({
     availability: completionAvailability(target, currentUser?.id, now),
     isCompleted: target.status === '동행 완료',
@@ -870,6 +909,21 @@ export default function App() {
     <div className="min-h-screen bg-[#f2f4f8] flex justify-center selection:bg-purple-100">
       {/* Mobile container simulating the exact mobile app interface */}
       <main className="w-full max-w-[440px] min-h-screen bg-white shadow-xl relative flex flex-col">
+        {demoMode && <DemoControlPanel
+          users={users} activeUserId={currentUser?.id || null} now={now} settings={demoSettings}
+          onSwitchUser={switchDemoUser}
+          onSetTimeOffset={changeTimeOffset}
+          onSetTime={iso => changeTimeOffset(Date.parse(iso) - Date.now())}
+          onChangeVariant={(key, value) => setDemoSettings(prev => ({ ...prev, variants: { ...prev.variants, [key]: value } }))}
+          onReset={resetPrototype}
+        />}
+        {storageIssue && <div role="alert" data-storage-issue={storageIssue} className="bg-red-50 text-red-900 text-xs px-4 py-2.5 border-b border-red-100">
+          <p className="leading-relaxed">{storageIssueMessage[storageIssue]}</p>
+          <div className="flex gap-2 mt-1.5 justify-end">
+            <button type="button" onClick={retryStorage} className="rounded-lg border border-red-200 bg-white px-2.5 py-1 font-bold">저장 다시 시도</button>
+            <button type="button" onClick={resetPrototype} className="rounded-lg bg-red-600 text-white px-2.5 py-1 font-bold">저장 데이터 초기화</button>
+          </div>
+        </div>}
         {/* Top Header */}
         <Header
           unreadCount={unreadNotifCount}
@@ -877,6 +931,10 @@ export default function App() {
           currentUser={currentUser}
           onOpenAuth={() => setIsAuthModalOpen(true)}
         />
+        {currentUser && profileMissing.length > 0 && !profileEditor && activeTab !== 'me' && <div role="status" data-profile-incomplete-bar className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-950">
+          <span className="flex-1 min-w-0">프로필 미완성 · 남은 단계 {profileMissing.map(step => profileStepLabel[step]).join(' · ')}</span>
+          <button type="button" onClick={() => setProfileEditor({ mode: 'setup', step: profileMissing[0] })} className="shrink-0 rounded-lg bg-amber-900 text-white px-2.5 py-1 font-bold">이어서 작성</button>
+        </div>}
 
         {/* Tab 1: Home View */}
         {activeTab === 'home' && (
@@ -914,10 +972,10 @@ export default function App() {
         {/* Request and appointment conversations share the same rooms. */}
         {activeTab === 'chat' && <div className="flex-1 flex flex-col">
           {activeRoom && currentUser && activePartner ? <ChatView key={activeRoom.id}
-            room={activeRoom} user={currentUser} partner={publicProfileForMember(activePartner, currentUser)} post={activeRoomPost} request={activeRoomRequest} appointment={activeRoomAppointment}
-            status={roomAccess(activeRoom, currentUser.id, joinRequests, appointments, meetupPosts)}
+            room={activeRoom} user={currentUser} partner={publicProfileForMember(activePartner, currentUser, users)} post={activeRoomPost} request={activeRoomRequest} appointment={activeRoomAppointment}
+            status={roomAccess(activeRoom, currentUser.id, joinRequests, appointments, meetupPosts, clock())}
             completionActions={activeRoomAppointment ? completionActionsFor(activeRoomAppointment) : undefined}
-            onBack={() => setActiveRoomId(null)} onOpenProfile={() => setSelectedChatProfile(publicProfileForMember(activePartner, currentUser))}
+            onBack={() => setActiveRoomId(null)} onOpenProfile={() => setSelectedChatProfile(activePartner)}
             onOpenPost={() => activeRoomPost && setSelectedPostForDetail(activeRoomPost)}
             onOpenDashboard={() => activeRoomAppointment && openAppointment(activeRoomAppointment)}
             onOpenVoiceCall={() => { if(activeRoomAppointment) { setActiveAppointmentId(activeRoomAppointment.id); setIsVoiceCallOpen(true); } }}
@@ -954,7 +1012,9 @@ export default function App() {
               onOpenAuth={() => setIsAuthModalOpen(true)}
               onOpenKyc={() => setIsKycModalOpen(true)}
               onLogout={handleLogout}
-              onUpdateAvatar={handleUpdateAvatar}
+              profileMissing={profileMissing}
+              onEditProfile={step => setProfileEditor(profileMissing.length ? { mode: 'setup', step: step || profileMissing[0] } : { mode: 'edit' })}
+              onPreviewProfile={() => setIsProfilePreviewOpen(true)}
               reviews={reviews}
               escrowPayments={escrowPayments}
             />
@@ -985,7 +1045,7 @@ export default function App() {
           onSendArrivalNotice={handleSendArrivalNotice}
           onCancelAppointment={() => openAppointmentCancellation(appointment)}
           partnerProfile={dashboardProfile}
-          onOpenPartnerProfile={() => dashboardProfile && setSelectedChatProfile(dashboardProfile)}
+          onOpenPartnerProfile={() => dashboardPartner && setSelectedChatProfile(dashboardPartner)}
           completionActions={completionActionsFor(appointment)}
         />
 
@@ -1038,7 +1098,10 @@ export default function App() {
           onOpenExistingChat={existingPostRoom ? () => {
             setSelectedPostForDetail(null); setSelectedCategory(null); setSelectedEvent(null); openRoom(existingPostRoom);
           } : undefined}
-          canViewPrivateLocation={Boolean(currentUser && appointments.some(item => item.postId === selectedPostForDetail?.id && item.participantIds?.includes(currentUser.id) && ['매칭 확정', '매칭완료', '동행 완료'].includes(item.status)))}
+          canViewPrivateLocation={canViewSecretLocation(selectedPostForDetail?.id, appointments, currentUser?.id)}
+          authorProfile={selectedPostForDetail ? publicProfileForMember(postAuthor(selectedPostForDetail), currentUser, users) : null}
+          onOpenAuthorProfile={() => selectedPostForDetail && setSelectedChatProfile(postAuthor(selectedPostForDetail))}
+          isCovered={Boolean(selectedChatProfile)}
         />
 
         {/* Phase 3 Modal: 1:1 동행 신청서 모달 (신청자) */}
@@ -1079,7 +1142,7 @@ export default function App() {
         <NotificationModal
           isOpen={isNotificationsOpen}
           onClose={() => setIsNotificationsOpen(false)}
-          notifications={notifications}
+          notifications={myNotifications}
           onMarkAllAsRead={handleMarkAllNotificationsAsRead}
           onOpenRoom={(roomId) => {
             setIsNotificationsOpen(false);
@@ -1097,7 +1160,40 @@ export default function App() {
           }}
         />
 
-        {selectedChatProfile && <UserProfileModal profile={selectedChatProfile} onClose={() => setSelectedChatProfile(null)} backLabel="이전 화면으로 돌아가기" />}
+        {selectedChatProfile && <UserProfileModal
+          key={selectedChatProfile.id}
+          profile={publicProfileForMember(selectedChatProfile, currentUser, users)}
+          variant={demoSettings.variants.profile}
+          showVariantLabel={demoMode}
+          onClose={() => setSelectedChatProfile(null)}
+          backLabel={selectedPostForDetail ? '공고로 돌아가기' : '이전 화면으로 돌아가기'}
+          selfPreview={selectedChatProfile.id === currentUser?.id}
+          actions={{
+            canInteract: Boolean(currentUser),
+            isFavorite: Boolean(currentUser && isSavedBy(currentUser.id, selectedChatProfile.id, favorites)),
+            isBlocked: Boolean(currentUser && blocks.some(item => item.blockerId === currentUser.id && item.blockedId === selectedChatProfile.id)),
+            onToggleFavorite: () => toggleFavorite(selectedChatProfile.id),
+            onReport: () => setSafetyDialog({ kind: 'report', member: selectedChatProfile }),
+            onBlock: () => setSafetyDialog({ kind: 'block', member: selectedChatProfile }),
+            onLoginRequired: () => { setSelectedChatProfile(null); setIsAuthModalOpen(true); },
+          }}
+        />}
+        {isProfilePreviewOpen && currentUser && <UserProfileModal profile={publicProfileForMember(selfMember(currentUser), currentUser, users)}
+          variant={demoSettings.variants.profile} showVariantLabel={demoMode} selfPreview backLabel="Me로 돌아가기" onClose={() => setIsProfilePreviewOpen(false)} />}
+        {profileEditor && currentUser && <ProfileEditor
+          key={`${currentUser.id}-${profileEditor.mode}`}
+          user={currentUser} mode={profileEditor.mode} initialStep={profileEditor.step} reason={profileEditor.reason}
+          variant={demoSettings.variants.profile} showVariantLabel={demoMode}
+          previewOf={patch => publicProfileForMember(selfMember(currentUser), { ...currentUser, ...patch }, users)}
+          onCommit={commitProfile}
+          onClose={() => setProfileEditor(null)}
+          onDone={() => { setProfileEditor(null); setLifecycleNotice(profileEditor.mode === 'setup' ? '프로필을 저장했어요. 이제 동행을 신청하거나 공고를 올릴 수 있어요.' : '프로필 변경을 저장했어요.'); }}
+        />}
+        {safetyDialog?.kind === 'report' && <ReportUserDialog targetName={safetyDialog.member.displayName} onClose={() => setSafetyDialog(null)}
+          onSubmit={() => { setSafetyDialog(null); setLifecycleNotice('신고를 예시로 접수했어요. 실제 운영팀 전달이나 자동 제재는 없어요.'); }} />}
+        {safetyDialog?.kind === 'block' && <BlockUserDialog targetName={safetyDialog.member.displayName}
+          affectedTitles={activeAppointmentsWith(safetyDialog.member.id).map(item => item.title)}
+          onClose={() => setSafetyDialog(null)} onConfirm={() => confirmBlock(safetyDialog.member)} />}
         {postAction && <LifecycleConfirmDialog title={postAction.mode === 'deleted' ? '공고 삭제' : '모집 마감'} description={postAction.mode === 'deleted' ? '공고를 목록에서 지우고 남아 있는 신청을 종료합니다. 기존 신청·대화 기록은 보존돼요.' : '새 신청을 받지 않고 미확정 신청을 함께 종료합니다. 동행이 확정되는 것은 아니에요.'} actionLabel={postAction.mode === 'deleted' ? '공고 삭제하기' : '모집 마감하기'} onClose={() => setPostAction(null)} onConfirm={confirmPostAction} />}
         {cancellationTarget && <CancellationDialog key={cancellationTarget.id} kind={cancellationTarget.kind} title={cancellationTarget.title} onClose={() => setCancellationTarget(null)} onConfirm={confirmCancellation} />}
         {conflictPrompt && <ScheduleConflictDialog conflicts={conflictPrompt.conflicts} onClose={() => setConflictPrompt(null)} onContinue={continueConflict} />}
@@ -1107,6 +1203,8 @@ export default function App() {
           isOpen={isAuthModalOpen}
           onClose={() => setIsAuthModalOpen(false)}
           onAuthSuccess={handleAuthSuccess}
+          users={users}
+          now={now}
         />
 
         {/* Modal: 선택형 KYC 본인확인 (Phase 1) */}
@@ -1114,7 +1212,6 @@ export default function App() {
           isOpen={isKycModalOpen}
           onClose={() => setIsKycModalOpen(false)}
           isAlreadyVerified={currentUser?.isKycVerified || false}
-          onKycSuccess={handleKycSuccess}
         />
 
         {/* Phase 5 Modal: 상호 블라인드 평가 및 실시간 당도 정산 모달 */}

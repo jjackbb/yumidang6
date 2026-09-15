@@ -1,795 +1,337 @@
-import { DEMO_USER_ID } from '../data/demoIdentity';
-import React, { useState, useEffect, useRef } from 'react';
-import { X, ShieldCheck, Phone, User, ArrowRight, AlertCircle, Check, Clock, Sparkles, Key, Camera } from 'lucide-react';
+import { NEW_USER_SUGAR } from '../data/publicProfiles';
+import React, { useState, useEffect } from 'react';
+import { X, ShieldCheck, Phone, ArrowRight, AlertCircle, Check, Clock, Sparkles, Key, Mail } from 'lucide-react';
 import { CurrentUser } from '../types';
 import { maskRealName } from '../utils/maskName';
+import {
+  NEIGHBORHOOD_OPTIONS, ageGroupOf, koreaToday, sanitizePhone, validateBirthDate, validateKoreanName,
+  validatePhone, validateReferralCode, validateWorkEmail,
+} from '../utils/profile';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthSuccess: (user: CurrentUser) => void;
+  onAuthSuccess: (user: CurrentUser, kind: 'signup' | 'signin') => void;
+  /** Accounts known to this prototype (looked up by phone). */
+  users: CurrentUser[];
+  now?: Date;
 }
 
 type AuthMode = 'signup' | 'signin';
-type SignUpStep = 'terms' | 'phone' | 'profile';
+type SignUpStep = 'terms' | 'phone' | 'basic';
 
-const DEFAULT_FEMALE_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';
-const DEFAULT_MALE_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+// Prototype-only codes. No SMS or email is ever sent.
+export const SAMPLE_OTP = '123456';
+export const SAMPLE_EMAIL_CODE = '246810';
+const SAMPLE_LOGIN_PHONE = '01000000001';
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, users, now = new Date() }) => {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [step, setStep] = useState<SignUpStep>('terms');
 
-  // Input states
-  const [phone, setPhone] = useState('01012345678');
+  const [phone, setPhone] = useState(SAMPLE_LOGIN_PHONE);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  const [timerSeconds, setTimerSeconds] = useState(90);
+  const [timerSeconds, setTimerSeconds] = useState(180);
   const [timerActive, setTimerActive] = useState(false);
 
-  // Profile states
-  const [realName, setRealName] = useState('조유미');
-  const [gender, setGender] = useState<'female' | 'male' | 'undisclosed'>('female');
-  const [ageGroup, setAgeGroup] = useState('20대');
+  const [realName, setRealName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [gender, setGender] = useState<'female' | 'male' | null>(null);
+  const [neighborhood, setNeighborhood] = useState(NEIGHBORHOOD_OPTIONS[0]);
+  const [maleRoute, setMaleRoute] = useState<'referral' | 'work_email'>('referral');
   const [referralCode, setReferralCode] = useState('');
-  const [avatar, setAvatar] = useState(DEFAULT_FEMALE_AVATAR);
-  const [isCustomAvatar, setIsCustomAvatar] = useState(false);
-  const [bio, setBio] = useState('브런치와 주말 문화생활을 좋아하는 동행러입니다.');
+  const [workEmail, setWorkEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailCode, setEmailCode] = useState('');
 
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-
-  // Terms
   const [agreedAge, setAgreedAge] = useState(false);
   const [agreedService, setAgreedService] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedSafety, setAgreedSafety] = useState(false);
 
-  // Error & Info
   const [errorMessage, setErrorMessage] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
 
-  // Timer countdown
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (timerActive && timerSeconds > 0) {
-      interval = setInterval(() => {
-        setTimerSeconds((prev) => prev - 1);
-      }, 1000);
-    } else if (timerSeconds === 0) {
-      setTimerActive(false);
-    }
+    if (!timerActive) return;
+    if (timerSeconds <= 0) { setTimerActive(false); return; }
+    const interval = setInterval(() => setTimerSeconds(prev => prev - 1), 1000);
     return () => clearInterval(interval);
   }, [timerActive, timerSeconds]);
 
   const allAgreed = agreedAge && agreedService && agreedPrivacy && agreedSafety;
-
   const handleToggleAll = () => {
     const next = !allAgreed;
-    setAgreedAge(next);
-    setAgreedService(next);
-    setAgreedPrivacy(next);
-    setAgreedSafety(next);
+    setAgreedAge(next); setAgreedService(next); setAgreedPrivacy(next); setAgreedSafety(next);
   };
 
-  const resetForm = () => {
-    setMode('signin');
-    setPhone('01012345678');
-    setOtpSent(false);
-    setOtpCode('');
-    setTimerActive(false);
-    setTimerSeconds(90);
-    setRealName('조유미');
-    setReferralCode('');
-    setAvatar(DEFAULT_FEMALE_AVATAR);
-    setIsCustomAvatar(false);
-    setErrorMessage('');
-    setInfoMessage('');
-    setStep('terms');
+  const resetOtp = () => { setOtpSent(false); setOtpCode(''); setTimerActive(false); setTimerSeconds(180); };
+  const resetForm = (nextMode: AuthMode = 'signin') => {
+    setMode(nextMode); setStep('terms');
+    setPhone(nextMode === 'signin' ? SAMPLE_LOGIN_PHONE : ''); resetOtp();
+    setRealName(''); setBirthDate(''); setGender(null); setNeighborhood(NEIGHBORHOOD_OPTIONS[0]);
+    setMaleRoute('referral'); setReferralCode(''); setWorkEmail(''); setEmailSent(false); setEmailCode('');
+    setAgreedAge(false); setAgreedService(false); setAgreedPrivacy(false); setAgreedSafety(false);
+    setErrorMessage(''); setInfoMessage('');
   };
 
-  const handleGenderChange = (g: 'female' | 'male') => {
-    setGender(g);
-    setErrorMessage('');
-    if (!isCustomAvatar) {
-      setAvatar(g === 'male' ? DEFAULT_MALE_AVATAR : DEFAULT_FEMALE_AVATAR);
-    }
-  };
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setErrorMessage('프로필 사진은 5MB 이하의 이미지 파일만 등록할 수 있습니다.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setAvatar(reader.result);
-          setIsCustomAvatar(true);
-          setErrorMessage('');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleRealNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 영문, 숫자, 특수문자, 공백 등 한글(자음, 모음, 완성형) 이외의 문자는 실시간 차단
-    const val = e.target.value.replace(/[^ㄱ-ㅎㅏ-ㅣ가-힣]/g, '');
-    setRealName(val);
-    setErrorMessage('');
-  };
-
-  const hasSeparatedJamo = /[ㄱ-ㅎㅏ-ㅣ]/.test(realName);
-
-  useEffect(() => {
-    if (isOpen) {
-      setMode('signin');
-      setOtpSent(false);
-      setOtpCode('');
-      setErrorMessage('');
-      setInfoMessage('');
-    }
-  }, [isOpen]);
+  useEffect(() => { if (isOpen) resetForm('signin'); }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // 인증번호 발송 시뮬레이션
+  const close = () => { onClose(); resetForm(); };
+  const existingByPhone = (value: string) => users.find(user => user.phone === value);
+
   const handleSendOtp = () => {
-    if (!/^\d{11}$/.test(phone)) {
-      setErrorMessage('올바른 휴대폰 번호를 입력해주세요.');
-      return;
-    }
+    const problem = validatePhone(phone);
+    if (problem) { setErrorMessage(problem); return; }
+    if (mode === 'signin' && !existingByPhone(phone)) { setErrorMessage('가입 정보가 없는 번호예요. 번호를 확인하거나 휴대폰 본인인증으로 가입해 주세요.'); return; }
+    if (mode === 'signup' && existingByPhone(phone)) { setErrorMessage('이미 가입된 번호예요. 로그인으로 돌아가 주세요.'); return; }
     setErrorMessage('');
-    setOtpSent(true);
-    setTimerSeconds(90);
-    setTimerActive(true);
-    setInfoMessage(`'${phone.trim()}'으로 인증번호 6자리가 발송되었습니다. (테스트용: 123456)`);
+    setOtpSent(true); setOtpCode(''); setTimerSeconds(180); setTimerActive(true);
+    setInfoMessage(`체험 모드라 실제 문자는 보내지 않았어요. 예시 인증번호 ${SAMPLE_OTP}을 입력하면 다음 단계로 넘어가요.`);
   };
 
-  // 인증번호 검증 시뮬레이션
-  const handleVerifyOtp = (isForSignIn = false) => {
+  const handleVerifyOtp = () => {
     setErrorMessage('');
-    if (otpCode.trim().length !== 6) {
-      setErrorMessage('인증번호 6자리를 올바르게 입력해주세요.');
-      return;
-    }
-
-    // 6자리 입력 시 인증 통과
+    if (timerSeconds <= 0) { setErrorMessage('인증 시간이 지났어요. 재발송을 눌러 다시 시도해 주세요.'); return; }
+    if (!/^\d{6}$/.test(otpCode)) { setErrorMessage('인증번호 6자리 숫자를 입력해 주세요.'); return; }
+    if (otpCode !== SAMPLE_OTP) { setErrorMessage('인증번호가 맞지 않아요. 다시 입력하거나 재발송해 주세요.'); return; }
     setTimerActive(false);
-
-    if (isForSignIn) {
-      // 로그인 완료 처리
-      const loggedUser: CurrentUser = {
-        id: DEMO_USER_ID,
-        isLoggedIn: true,
-        phone: phone.trim(),
-        realName: '조유미',
-        maskedName: '조*미',
-        nickname: '조*미',
-        gender: 'female',
-        ageGroup: '20대',
-        neighborhood: '서울 강남구 역삼동',
-        sugarContent: 50,
-        isPhoneVerified: true,
-        isKycVerified: false,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-        bio: '브런치와 주말 문화생활을 좋아하는 동행러입니다.',
-        joinedAt: '방금 로그인',
-      };
-      onAuthSuccess(loggedUser);
-      onClose();
-      resetForm();
-    } else {
-      // 회원가입: 프로필 등록 단계로 진행
-      setStep('profile');
-      setInfoMessage('휴대폰 본인확인이 완료되었습니다! 안심 실명 프로필을 등록해주세요.');
+    if (mode === 'signin') {
+      const account = existingByPhone(phone);
+      if (!account) { setErrorMessage('가입 정보가 없는 번호예요.'); return; }
+      onAuthSuccess({ ...account, isLoggedIn: true }, 'signin');
+      close();
+      return;
     }
+    setStep('basic');
+    setInfoMessage('번호 확인(체험)을 마쳤어요. 기본 정보를 입력해 주세요. 실제 휴대폰 인증 배지는 부여되지 않아요.');
   };
 
-  // 회원가입 최종 완료
+  const handleSendEmail = () => {
+    const problem = validateWorkEmail(workEmail);
+    if (problem) { setErrorMessage(problem); return; }
+    setErrorMessage(''); setEmailSent(true);
+    setInfoMessage(`체험 모드라 실제 메일은 보내지 않았어요. 예시 확인 코드 ${SAMPLE_EMAIL_CODE}을 입력해 주세요.`);
+  };
+
   const handleCompleteSignUp = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedName = realName.trim();
+    const problem = validateKoreanName(realName) || validateBirthDate(birthDate, now)
+      || (!gender ? '성별을 선택해 주세요.' : null)
+      || (gender === 'male' && maleRoute === 'referral' ? validateReferralCode(referralCode) : null)
+      || (gender === 'male' && maleRoute === 'work_email' ? (validateWorkEmail(workEmail) || (!emailSent ? '확인 메일 보내기를 먼저 눌러 주세요.' : emailCode.trim() !== SAMPLE_EMAIL_CODE ? '이메일 확인 코드가 맞지 않아요. 다시 입력해 주세요.' : null)) : null);
+    if (problem) { setErrorMessage(problem); return; }
+    if (existingByPhone(phone)) { setErrorMessage('이미 가입된 번호예요. 로그인으로 돌아가 주세요.'); return; }
 
-    // 1. 실명 필수 검증
-    if (!trimmedName) {
-      setErrorMessage('실명을 입력해주세요.');
-      return;
-    }
-
-    // 2. 한글 자음/모음 분리 입력 차단 검증
-    if (/[ㄱ-ㅎㅏ-ㅣ]/.test(trimmedName)) {
-      setErrorMessage('실명에 완성되지 않은 자음이나 모음(ㄱ~ㅎ, ㅏ~ㅣ)이 포함되어 있습니다. 완전한 한글 음절로 입력해주세요.');
-      return;
-    }
-
-    // 3. 한글 완성형 2자 이상 10자 이하 검증
-    if (!/^[가-힣]{2,10}$/.test(trimmedName)) {
-      setErrorMessage('실명은 2자 이상의 완전한 한글로만 입력해주세요. (예: 조유미, 김철수)');
-      return;
-    }
-
-    // 4. 남성 회원 추천인 코드 필수 검증
-    if (gender === 'male') {
-      if (!referralCode.trim()) {
-        setErrorMessage('남성 회원은 가입 시 추천인 코드가 필수입니다.');
-        return;
-      }
-      if (referralCode.trim().length < 4) {
-        setErrorMessage('올바른 추천인 코드를 입력해주세요 (4자리 이상).');
-        return;
-      }
-    }
-
-    const masked = maskRealName(trimmedName);
+    const name = realName.trim();
+    const masked = maskRealName(name);
     const newUser: CurrentUser = {
-      id: DEMO_USER_ID,
+      id: `user-${crypto.randomUUID()}`,
       isLoggedIn: true,
-      phone: phone.trim(),
-      realName: trimmedName,
+      phone,
+      realName: name,
       maskedName: masked,
-      nickname: masked, // 가공된 별명 대신 실명 마스킹 사용
-      gender,
-      ageGroup,
-      neighborhood: '서울 강남구 역삼동',
-      sugarContent: 50, // 신규 가입 기본 50 Brix
-      isPhoneVerified: true,
+      nickname: masked,
+      gender: gender!,
+      birthDate,
+      ageGroup: ageGroupOf(birthDate, now),
+      neighborhood,
+      sugarContent: NEW_USER_SUGAR,
+      // The code check above is a prototype example, so no verified badge is granted.
+      isPhoneVerified: false,
       isKycVerified: false,
-      avatar: avatar,
-      bio: bio.trim(),
+      isSample: false,
+      avatar: '',
+      bio: '',
+      hobbies: [],
+      traits: [],
       joinedAt: '방금 가입',
-      referralCode: gender === 'male' ? referralCode.trim() : undefined,
+      joinRoute: gender === 'male' ? maleRoute : undefined,
+      referralCode: gender === 'male' && maleRoute === 'referral' ? referralCode.trim() : undefined,
+      email: gender === 'male' && maleRoute === 'work_email' ? workEmail.trim().toLowerCase() : undefined,
     };
-
-    onAuthSuccess(newUser);
-    onClose();
-    resetForm();
+    onAuthSuccess(newUser, 'signup');
+    close();
   };
 
+  const phoneInput = (label: string) => <div>
+    <label htmlFor="auth-phone" className="block text-xs font-bold text-gray-700 mb-1.5">{label}</label>
+    <div className="flex gap-2">
+      <div className="relative flex-1 min-w-0">
+        <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+        <input id="auth-phone" type="tel" maxLength={11} inputMode="numeric" autoComplete="tel" aria-label="휴대폰 번호" placeholder="01012345678" value={phone}
+          onChange={(e) => { setPhone(sanitizePhone(e.target.value)); setErrorMessage(''); if (otpSent) resetOtp(); }}
+          onPaste={(e) => { e.preventDefault(); setPhone(sanitizePhone(e.clipboardData.getData('text'))); setErrorMessage(''); if (otpSent) resetOtp(); }}
+          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]" />
+      </div>
+      <button type="button" onClick={handleSendOtp} className="px-3.5 py-2.5 bg-[#f0edff] hover:bg-[#ded6fb] text-[#6c2cf5] font-bold text-xs rounded-xl transition-colors whitespace-nowrap">
+        {otpSent ? '재발송' : '인증번호 발송'}
+      </button>
+    </div>
+    <p className="text-[11px] text-gray-400 mt-1">숫자만 11자리까지 입력돼요. 붙여넣어도 하이픈·공백은 빠져요.</p>
+  </div>;
+
+  const otpBlock = (submitLabel: string) => otpSent && <div className="space-y-2.5 animate-in fade-in">
+    <div className="flex items-center justify-between">
+      <label htmlFor="auth-otp" className="block text-xs font-bold text-gray-700">인증번호 6자리</label>
+      <span className="text-xs font-semibold text-rose-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />남은 시간 {Math.floor(Math.max(timerSeconds, 0) / 60)}:{('0' + (Math.max(timerSeconds, 0) % 60)).slice(-2)}</span>
+    </div>
+    <div className="relative">
+      <input id="auth-otp" type="text" inputMode="numeric" maxLength={6} placeholder="인증번호 6자리 입력" value={otpCode}
+        onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setErrorMessage(''); }}
+        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm tracking-widest font-mono text-center font-bold border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]" />
+      <button type="button" onClick={() => setOtpCode(SAMPLE_OTP)} className="absolute right-2 top-2 px-2 py-1 text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] hover:bg-[#ded6fb] rounded-lg transition-colors">테스트코드 입력</button>
+    </div>
+    <button type="button" disabled={otpCode.length !== 6} onClick={handleVerifyOtp}
+      className="w-full mt-2 py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] disabled:bg-purple-300 text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all flex items-center justify-center gap-2">
+      <span>{submitLabel}</span><ArrowRight className="w-4 h-4" />
+    </button>
+  </div>;
+
+  const sampleNotice = <div className="p-3.5 bg-amber-50 rounded-2xl text-[11px] text-amber-900 leading-relaxed">
+    <div className="font-bold flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" />실제 문자 발송 없는 인증 체험</div>
+    <p className="mt-0.5">[인증번호 발송] 후 [테스트코드 입력]으로 예시 번호를 넣을 수 있어요. 실제 본인인증을 마친 것은 아니에요.</p>
+  </div>;
+
+  const age = ageGroupOf(birthDate, now);
+  const title = mode === 'signin' ? '로그인' : step === 'terms' ? '약관 동의' : step === 'phone' ? '휴대폰 번호 확인' : '기본 정보 입력';
+
   return (
-    <div role="dialog" aria-modal="true" aria-label={mode === 'signin' ? '휴대폰 로그인' : '회원가입'} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
-      <div
-        className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
+    <div role="dialog" aria-modal="true" aria-label={mode === 'signin' ? '휴대폰 로그인' : '회원가입'}
+      onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 py-4 flex items-center justify-between shadow-xs z-10">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#6c2cf5] flex items-center justify-center text-white">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <h3 className="text-[17px] font-bold text-gray-900">
-              {mode === 'signin'
-                ? '휴대폰 번호 로그인'
-                : step === 'terms'
-                ? '약관 동의 및 본인 확인'
-                : step === 'phone'
-                ? '휴대폰 번호 본인인증'
-                : '안심 실명 프로필 등록'}
-            </h3>
+            <div className="w-7 h-7 rounded-lg bg-[#6c2cf5] flex items-center justify-center text-white"><ShieldCheck className="w-4 h-4" /></div>
+            <h3 className="text-[17px] font-bold text-gray-900">{title}</h3>
           </div>
-          <button
-            aria-label="로그인 창 닫기"
-            onClick={() => {
-              onClose();
-              resetForm();
-            }}
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <button aria-label="로그인 창 닫기" onClick={close} className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Messages */}
-        {errorMessage && (
-          <div className="mx-5 mt-4 p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-600 flex items-start gap-2 animate-in fade-in">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{errorMessage}</span>
+        {errorMessage && <div role="alert" className="mx-5 mt-4 p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-600 flex items-start gap-2 animate-in fade-in"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{errorMessage}</span></div>}
+        {infoMessage && <div role="status" className="mx-5 mt-4 p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-700 flex items-start gap-2 animate-in fade-in"><Check className="w-4 h-4 shrink-0 mt-0.5 text-[#6c2cf5]" /><span>{infoMessage}</span></div>}
+
+        {mode === 'signup' && <div>
+          <div className="px-5 pt-3 pb-2 flex items-center gap-1.5" aria-hidden>
+            {(['terms', 'phone', 'basic'] as SignUpStep[]).map((item, index) => <div key={item} className={`h-1.5 flex-1 rounded-full ${index <= ['terms', 'phone', 'basic'].indexOf(step) ? 'bg-[#6c2cf5]' : 'bg-gray-200'}`} />)}
           </div>
-        )}
+          <p className="px-5 text-[11px] text-gray-400">가입 {['terms', 'phone', 'basic'].indexOf(step) + 1}/3 · 가입 후 사진 → 취미·성향 → 소개 순서로 프로필을 만들어요.</p>
 
-        {infoMessage && (
-          <div className="mx-5 mt-4 p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-700 flex items-start gap-2 animate-in fade-in">
-            <Check className="w-4 h-4 shrink-0 mt-0.5 text-[#6c2cf5]" />
-            <span>{infoMessage}</span>
-          </div>
-        )}
-
-        {/* ==============================
-            MODE 1: SIGN UP (회원가입)
-        ============================== */}
-        {mode === 'signup' && (
-          <div>
-            {/* Step Indicator */}
-            <div className="px-5 pt-3 pb-2 flex items-center gap-1.5">
-              <div className={`h-1.5 flex-1 rounded-full ${step === 'terms' ? 'bg-[#6c2cf5]' : 'bg-[#ded6fb]'}`} />
-              <div className={`h-1.5 flex-1 rounded-full ${step === 'phone' ? 'bg-[#6c2cf5]' : step === 'profile' ? 'bg-[#ded6fb]' : 'bg-gray-200'}`} />
-              <div className={`h-1.5 flex-1 rounded-full ${step === 'profile' ? 'bg-[#6c2cf5]' : 'bg-gray-200'}`} />
-            </div>
-
-            {/* STEP 1: 약관 동의 */}
-            {step === 'terms' && (
-              <div className="p-5 space-y-4">
-                <div className="text-center py-2">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#6c2cf5] flex items-center justify-center mx-auto mb-2.5 shadow-2xs">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-[17px] font-bold text-gray-900">안전한 1:1 동행을 위해</h4>
-                  <p className="text-xs text-gray-500 mt-1">
-                    유미당은 신뢰할 수 있는 이웃 간의 만남을 위해 필수 약관 동의를 진행합니다.
-                  </p>
-                </div>
-
-                <div className="space-y-3 bg-[#f8f9fc] p-4 rounded-2xl">
-                  <label className="flex items-center gap-3 pb-3 border-b border-gray-200/50 cursor-pointer font-bold text-sm text-gray-900">
-                    <input
-                      type="checkbox"
-                      checked={allAgreed}
-                      onChange={handleToggleAll}
-                      className="w-5 h-5 accent-[#6c2cf5] rounded cursor-pointer"
-                    />
-                    <span>전체 약관에 동의합니다</span>
-                  </label>
-
-                  <label className="flex items-center justify-between text-xs text-gray-700 cursor-pointer">
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={agreedAge}
-                        onChange={(e) => setAgreedAge(e.target.checked)}
-                        className="w-4 h-4 accent-[#6c2cf5] rounded cursor-pointer"
-                      />
-                      <span>[필수] 만 19세 이상 성인 본인 확인</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center justify-between text-xs text-gray-700 cursor-pointer">
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={agreedService}
-                        onChange={(e) => setAgreedService(e.target.checked)}
-                        className="w-4 h-4 accent-[#6c2cf5] rounded cursor-pointer"
-                      />
-                      <span>[필수] 유미당 서비스 이용약관 동의</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center justify-between text-xs text-gray-700 cursor-pointer">
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={agreedPrivacy}
-                        onChange={(e) => setAgreedPrivacy(e.target.checked)}
-                        className="w-4 h-4 accent-[#6c2cf5] rounded cursor-pointer"
-                      />
-                      <span>[필수] 개인정보 수집 및 이용 동의</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center justify-between text-xs text-gray-700 cursor-pointer">
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={agreedSafety}
-                        onChange={(e) => setAgreedSafety(e.target.checked)}
-                        className="w-4 h-4 accent-[#6c2cf5] rounded cursor-pointer"
-                      />
-                      <span>[필수] 1:1 동행 안전 수칙 준수 서약</span>
-                    </div>
-                  </label>
-                </div>
-
-                <button
-                  disabled={!allAgreed}
-                  onClick={() => setStep('phone')}
-                  className={`w-full py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center justify-center gap-1.5 ${
-                    allAgreed
-                      ? 'bg-[#6c2cf5] text-white shadow-md shadow-purple-500/20 active:scale-98'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <span>동의하고 다음으로</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* STEP 2: 휴대폰 번호 본인인증 */}
-            {step === 'phone' && (
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    휴대폰 번호
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                      <input
-                        type="tel"
-                        maxLength={11}
-                        inputMode="numeric"
-                        autoComplete="tel"
-                        aria-label="휴대폰 번호"
-                        placeholder="01012345678"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                        onPaste={(e) => { e.preventDefault(); setPhone(e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 11)); }}
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      className="px-3.5 py-2.5 bg-[#f0edff] hover:bg-[#ded6fb] text-[#6c2cf5] font-bold text-xs rounded-xl transition-colors whitespace-nowrap"
-                    >
-                      {otpSent ? '재발송' : '인증번호 발송'}
-                    </button>
-                  </div>
-                </div>
-
-                {otpSent && (
-                  <div className="space-y-2.5 animate-in fade-in">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-gray-700">
-                        인증번호 6자리
-                      </label>
-                      <span className="text-xs font-semibold text-rose-500 flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        남은 시간 {Math.floor(timerSeconds / 60)}:{('0' + (timerSeconds % 60)).slice(-2)}
-                      </span>
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="text"
-                        maxLength={6}
-                        placeholder="인증번호 6자리 입력"
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm tracking-widest font-mono text-center font-bold border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setOtpCode('123456')}
-                        className="absolute right-2 top-2 px-2 py-1 text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] hover:bg-[#ded6fb] rounded-lg transition-colors"
-                      >
-                        테스트코드 입력
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={otpCode.trim().length !== 6}
-                      onClick={() => handleVerifyOtp(false)}
-                      className="w-full mt-2 py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] disabled:bg-purple-300 text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all flex items-center justify-center gap-2"
-                    >
-                      <span>인증 확인 및 계속하기</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                <div className="p-3.5 bg-purple-50/60 rounded-2xl text-[11px] text-purple-900 leading-relaxed space-y-1">
-                  <div className="font-bold flex items-center gap-1 text-[#6c2cf5]">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>실제 발송 없는 안심 테스트 모드 지원</span>
-                  </div>
-                  <p className="text-gray-600">
-                    휴대폰 번호 입력 후 <strong>[인증번호 발송]</strong>을 누르시면, 우측의 <strong>[테스트코드 입력]</strong> 버튼을 통해 즉시 인증을 통과하실 수 있습니다.
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setStep('terms')}
-                    className="text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    &larr; 약관 동의로 돌아가기
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: 실명 마스킹 프로필 등록 */}
-            {step === 'profile' && (
-              <form onSubmit={handleCompleteSignUp} className="p-5 space-y-4">
-                {/* 프로필 사진 등록 */}
-                <div className="flex flex-col items-center justify-center pt-1 pb-2">
-                  <div
-                    className="relative group cursor-pointer"
-                    onClick={() => avatarInputRef.current?.click()}
-                    title="프로필 사진 등록 / 변경"
-                  >
-                    <img
-                      src={avatar}
-                      alt="프로필 사진"
-                      className="w-20 h-20 rounded-full object-cover ring-4 ring-purple-100 shadow-md transition-all group-hover:opacity-90"
-                    />
-                    <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#6c2cf5] hover:bg-[#5820d8] text-white flex items-center justify-center shadow-md border-2 border-white group-hover:scale-110 transition-transform">
-                      <Camera className="w-3.5 h-3.5" />
-                    </div>
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      type="button"
-                      onClick={() => avatarInputRef.current?.click()}
-                      className="text-xs font-bold text-[#6c2cf5] hover:text-[#5820d8] px-2.5 py-1 rounded-lg bg-[#f0edff] hover:bg-[#e4dcff] transition-colors"
-                    >
-                      {isCustomAvatar ? '내 사진 다시 선택' : '내 사진 업로드'}
-                    </button>
-                    {isCustomAvatar && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAvatar(gender === 'male' ? DEFAULT_MALE_AVATAR : DEFAULT_FEMALE_AVATAR);
-                          setIsCustomAvatar(false);
-                        }}
-                        className="text-[11px] text-gray-400 hover:text-gray-600 underline"
-                      >
-                        기본 사진으로
-                      </button>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-gray-400 mt-1">
-                    동행 파트너에게 신뢰를 주는 본인 사진을 등록해보세요
-                  </span>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-gray-700">
-                      한글 실명 입력 (필수)
-                    </label>
-                    <span className="text-[11px] font-semibold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">
-                      화면 표기: {maskRealName(realName) || '미입력'}
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="한글 실명을 입력해주세요 (예: 조유미)"
-                      value={realName}
-                      onChange={handleRealNameChange}
-                      className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border focus:outline-none focus:ring-2 ${
-                        hasSeparatedJamo
-                          ? 'border-rose-300 focus:ring-rose-400/30 focus:border-rose-500'
-                          : 'border-gray-200 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]'
-                      }`}
-                    />
-                  </div>
-                  {hasSeparatedJamo && (
-                    <p className="text-[11px] text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>자음/모음이 분리되지 않은 완전한 한글 음절로 입력해주세요.</span>
-                    </p>
-                  )}
-                  <div className="p-3 mt-2 bg-purple-50/70 rounded-2xl space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#6c2cf5]" />
-                      <span>유미당 실명 마스킹 원칙 안내</span>
-                    </div>
-                    <p className="text-[11px] text-purple-800 leading-relaxed">
-                      유미당은 가공된 별명이 아닌 <strong>본인확인 실명을 *로 가린 상태('{maskRealName(realName) || '조*미'}')</strong>로 모든 동행 서비스에서 안전하게 활동합니다.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 성별 및 연령대 */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      성별
-                    </label>
-                    <div className="flex gap-1.5">
-                      {(['female', 'male'] as const).map((g) => (
-                        <button
-                          type="button"
-                          key={g}
-                          onClick={() => handleGenderChange(g)}
-                          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-                            gender === g
-                              ? 'bg-[#f0edff] text-[#6c2cf5] border border-[#6c2cf5]/30'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {g === 'female' ? '여성' : '남성'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      연령대
-                    </label>
-                    <select
-                      value={ageGroup}
-                      onChange={(e) => setAgeGroup(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-gray-50 focus:bg-white text-xs border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
-                    >
-                      <option value="20대">20대</option>
-                      <option value="30대">30대</option>
-                      <option value="40대">40대</option>
-                      <option value="50대 이상">50대 이상</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* 남성 가입 시 필수 추천인 코드 입력 섹션 */}
-                {gender === 'male' && (
-                  <div className="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-blue-950 flex items-center gap-1.5">
-                        <Key className="w-3.5 h-3.5 text-blue-600" />
-                        <span>남성 회원 추천인 코드 (필수)</span>
-                      </label>
-                      <span className="text-[10px] font-extrabold text-blue-600 bg-blue-100/90 px-2 py-0.5 rounded">
-                        필수 입력
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="추천인 코드 입력 (예: SAFE-7788)"
-                        value={referralCode}
-                        onChange={(e) => {
-                          setReferralCode(e.target.value.toUpperCase());
-                          setErrorMessage('');
-                        }}
-                        className="w-full pl-3 pr-24 py-2.5 rounded-xl bg-white text-xs border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 font-mono tracking-wider"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReferralCode('SAFE-7788');
-                          setErrorMessage('');
-                        }}
-                        className="absolute right-1.5 top-1.5 px-2.5 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                      >
-                        테스트코드 입력
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-blue-700/90 leading-tight">
-                      * 1:1 동행 안전 보증을 위해 남성 회원은 기존 보증 회원의 추천인 코드가 필수입니다.
-                    </p>
-                  </div>
-                )}
-
-                {/* 당도 안내 */}
-                <div className="p-3.5 bg-[#f8f6ff] rounded-2xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🍯</span>
-                    <div>
-                      <span className="font-bold text-gray-900 block">기본 시작 당도</span>
-                      <span className="text-[11px] text-gray-500">동행 완료 후 상호 평가로 상승합니다</span>
-                    </div>
-                  </div>
-                  <span className="font-extrabold text-[#6c2cf5] text-sm bg-white px-2.5 py-1 rounded-lg shadow-2xs">
-                    50 🍯
-                  </span>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all"
-                >
-                  회원가입 완료 및 서비스 시작
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* ==============================
-            MODE 2: SIGN IN (로그인)
-        ============================== */}
-        {mode === 'signin' && (
-          <div className="p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                가입된 휴대폰 번호
+          {step === 'terms' && <div className="p-5 space-y-4">
+            <div className="space-y-3 bg-[#f8f9fc] p-4 rounded-2xl">
+              <label className="flex items-center gap-3 pb-3 border-b border-gray-200/50 cursor-pointer font-bold text-sm text-gray-900">
+                <input type="checkbox" checked={allAgreed} onChange={handleToggleAll} className="w-5 h-5 accent-[#6c2cf5] rounded cursor-pointer" /><span>전체 약관에 동의합니다</span>
               </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                  <input
-                    type="tel"
-                    maxLength={11}
-                    inputMode="numeric"
-                    autoComplete="tel"
-                    aria-label="휴대폰 번호"
-                    placeholder="01012345678"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                    onPaste={(e) => { e.preventDefault(); setPhone(e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 11)); }}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendOtp}
-                  className="px-3.5 py-2.5 bg-[#f0edff] hover:bg-[#ded6fb] text-[#6c2cf5] font-bold text-xs rounded-xl transition-colors whitespace-nowrap"
-                >
-                  {otpSent ? '재발송' : '인증번호 발송'}
-                </button>
+              {([
+                [agreedAge, setAgreedAge, '[필수] 만 19세 이상 성인 본인 확인'],
+                [agreedService, setAgreedService, '[필수] 유미당 서비스 이용약관 동의'],
+                [agreedPrivacy, setAgreedPrivacy, '[필수] 개인정보 수집 및 이용 동의'],
+                [agreedSafety, setAgreedSafety, '[필수] 1:1 동행 안전 수칙 준수 서약'],
+              ] as const).map(([checked, set, label]) => <label key={label} className="flex items-center gap-2.5 text-xs text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} className="w-4 h-4 accent-[#6c2cf5] rounded cursor-pointer" /><span>{label}</span>
+              </label>)}
+            </div>
+            <button disabled={!allAgreed} onClick={() => { setStep('phone'); setInfoMessage(''); }}
+              className={`w-full py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center justify-center gap-1.5 ${allAgreed ? 'bg-[#6c2cf5] text-white shadow-md shadow-purple-500/20 active:scale-98' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
+              <span>동의하고 다음으로</span><ArrowRight className="w-4 h-4" />
+            </button>
+            {!allAgreed && <p className="text-[11px] text-gray-400 text-center">필수 약관 4개에 모두 동의해야 다음으로 갈 수 있어요.</p>}
+          </div>}
+
+          {step === 'phone' && <div className="p-5 space-y-4">
+            {phoneInput('휴대폰 번호')}
+            {otpBlock('인증 확인 및 계속하기')}
+            {sampleNotice}
+            <button type="button" onClick={() => { setStep('terms'); resetOtp(); setErrorMessage(''); setInfoMessage(''); }} className="text-xs text-gray-500 hover:text-gray-700">&larr; 약관 동의로 돌아가기</button>
+          </div>}
+
+          {step === 'basic' && <form onSubmit={handleCompleteSignUp} noValidate className="p-5 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="auth-name" className="block text-xs font-bold text-gray-700">실명 (한글)</label>
+                <span className="text-[11px] font-semibold text-[#6c2cf5] bg-[#f0edff] px-2 py-0.5 rounded-full">공개 표기: {maskRealName(realName.trim()) || '미입력'}{age ? ` · ${age}` : ''}</span>
               </div>
+              {/* Validated on submit only, so Korean IME composition is never interrupted. */}
+              <input id="auth-name" type="text" autoComplete="name" aria-label="실명" placeholder="예: 조유미" value={realName}
+                onChange={(e) => { setRealName(e.target.value); setErrorMessage(''); }}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]" />
+              <p className="text-[11px] text-gray-400 mt-1">실명은 공개되지 않고 가운데를 가린 이름으로만 보여요.</p>
             </div>
 
-            {otpSent && (
-              <div className="space-y-2.5 animate-in fade-in">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-gray-700">
-                    인증번호 6자리
-                  </label>
-                  <span className="text-xs font-semibold text-rose-500 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    남은 시간 {Math.floor(timerSeconds / 60)}:{('0' + (timerSeconds % 60)).slice(-2)}
-                  </span>
-                </div>
-
-                <div className="relative">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    placeholder="인증번호 6자리 입력"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm tracking-widest font-mono text-center font-bold border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30 focus:border-[#6c2cf5]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setOtpCode('123456')}
-                    className="absolute right-2 top-2 px-2 py-1 text-[11px] font-bold text-[#6c2cf5] bg-[#f0edff] hover:bg-[#ded6fb] rounded-lg transition-colors"
-                  >
-                    테스트코드 입력
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={otpCode.trim().length !== 6}
-                  onClick={() => handleVerifyOtp(true)}
-                  className="w-full mt-2 py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] disabled:bg-purple-300 text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all flex items-center justify-center gap-2"
-                >
-                  <span>인증 확인 및 로그인</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  resetForm();
-                  setMode('signup');
-                  setStep('terms');
-                  setErrorMessage('');
-                  setInfoMessage('');
-                }}
-                className="text-xs text-gray-500 hover:text-[#6c2cf5] font-medium"
-              >
-                계정이 없으신가요? <span className="underline font-bold text-[#6c2cf5]">휴대폰 본인인증으로 가입</span>
-              </button>
+            <div>
+              <label htmlFor="auth-birth" className="block text-xs font-bold text-gray-700 mb-1.5">생년월일</label>
+              <input id="auth-birth" type="date" aria-label="생년월일" max={koreaToday(now)} min="1900-01-01" value={birthDate}
+                onChange={(e) => { setBirthDate(e.target.value); setErrorMessage(''); }}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 focus:bg-white text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6c2cf5]/30" />
+              <p className="text-[11px] text-gray-400 mt-1">프로필에는 생년월일 대신 연령대만 보여요.</p>
             </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div role="group" aria-label="성별">
+                <span className="block text-xs font-bold text-gray-700 mb-1.5">성별</span>
+                <div className="flex gap-1.5">
+                  {(['female', 'male'] as const).map(g => <button type="button" key={g} aria-pressed={gender === g} onClick={() => { setGender(g); setErrorMessage(''); }}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${gender === g ? 'bg-[#f0edff] text-[#6c2cf5] border border-[#6c2cf5]/30' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{g === 'female' ? '여성' : '남성'}</button>)}
+                </div>
+              </div>
+              <label className="block text-xs font-bold text-gray-700">활동 지역
+                <select value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} className="mt-1.5 w-full px-2.5 py-2 rounded-xl bg-gray-50 text-xs font-normal border border-gray-200">
+                  {NEIGHBORHOOD_OPTIONS.map(option => <option key={option}>{option}</option>)}
+                </select>
+              </label>
+            </div>
+
+            {gender === 'male' && <div className="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl space-y-2.5 animate-in fade-in">
+              <p className="text-xs font-bold text-blue-950">남성 회원 가입 확인 방법</p>
+              <div role="radiogroup" aria-label="남성 가입 확인 방법" className="grid grid-cols-2 gap-1.5">
+                {([['referral', '추천인 코드', Key], ['work_email', '학교·직장 이메일', Mail]] as const).map(([value, label, Icon]) => <button key={value} type="button" role="radio" aria-checked={maleRoute === value}
+                  onClick={() => { setMaleRoute(value); setErrorMessage(''); }}
+                  className={`flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold border ${maleRoute === value ? 'bg-white border-blue-500 text-blue-700' : 'bg-blue-50 border-blue-100 text-blue-900/70'}`}><Icon size={13} />{label}</button>)}
+              </div>
+              {maleRoute === 'referral' ? <div className="relative">
+                <input type="text" aria-label="추천인 코드" placeholder="예: SAFE-7788" value={referralCode}
+                  onChange={(e) => { setReferralCode(e.target.value.toUpperCase()); setErrorMessage(''); }}
+                  className="w-full pl-3 pr-24 py-2.5 rounded-xl bg-white text-xs border border-blue-200 font-mono tracking-wider" />
+                <button type="button" onClick={() => { setReferralCode('SAFE-7788'); setErrorMessage(''); }} className="absolute right-1.5 top-1.5 px-2.5 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg">예시 코드 입력</button>
+              </div> : <div className="space-y-2">
+                <div className="flex gap-1.5">
+                  <input type="email" aria-label="학교·직장 이메일" placeholder="name@company.co.kr" value={workEmail}
+                    onChange={(e) => { setWorkEmail(e.target.value); setEmailSent(false); setEmailCode(''); setErrorMessage(''); }}
+                    className="min-w-0 flex-1 px-3 py-2.5 rounded-xl bg-white text-xs border border-blue-200" />
+                  <button type="button" onClick={handleSendEmail} className="shrink-0 px-2.5 rounded-xl bg-blue-600 text-white text-[11px] font-bold">{emailSent ? '다시 보내기' : '확인 메일 보내기'}</button>
+                </div>
+                {emailSent && <input type="text" inputMode="numeric" aria-label="이메일 확인 코드" placeholder="확인 코드 6자리" value={emailCode} maxLength={6}
+                  onChange={(e) => { setEmailCode(e.target.value.replace(/\D/g, '')); setErrorMessage(''); }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-white text-xs border border-blue-200 tracking-widest font-mono" />}
+              </div>}
+              <p className="text-[11px] text-blue-800/90 leading-snug">체험 화면이에요. 실제 추천인 코드 조회나 메일 발송은 하지 않아요.</p>
+            </div>}
+
+            <div className="p-3.5 bg-[#f8f6ff] rounded-2xl flex items-center justify-between text-xs">
+              <div><span className="font-bold text-gray-900 block">신규 시작 당도</span><span className="text-[11px] text-gray-500">합산·하한·갱신 방식은 논의 중이에요</span></div>
+              <span className="font-extrabold text-[#6c2cf5] text-sm bg-white px-2.5 py-1 rounded-lg shadow-2xs">{NEW_USER_SUGAR} 🍯</span>
+            </div>
+
+            <button type="submit" className="w-full py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all">가입하고 프로필 만들기</button>
+          </form>}
+        </div>}
+
+        {mode === 'signin' && <div className="p-5 space-y-4">
+          {phoneInput('가입된 휴대폰 번호')}
+          {otpBlock('인증 확인 및 로그인')}
+          {sampleNotice}
+          <p className="text-[11px] text-gray-400">예시 회원 조*미의 번호가 채워져 있어요. 새로 가입한 번호로도 로그인할 수 있어요.</p>
+          <div className="pt-2 text-center">
+            <button type="button" onClick={() => resetForm('signup')} className="text-xs text-gray-500 hover:text-[#6c2cf5] font-medium">
+              계정이 없으신가요? <span className="underline font-bold text-[#6c2cf5]">휴대폰 본인인증으로 가입</span>
+            </button>
           </div>
-        )}
-        {mode === 'signup' && <div className="pb-5 text-center"><button onClick={resetForm} className="text-xs text-gray-500">이미 계정이 있으신가요? <span className="text-[#6c2cf5] font-bold underline">로그인으로 돌아가기</span></button></div>}
+        </div>}
+        {mode === 'signup' && <div className="pb-5 text-center"><button type="button" onClick={() => resetForm('signin')} className="text-xs text-gray-500">이미 계정이 있으신가요? <span className="text-[#6c2cf5] font-bold underline">로그인으로 돌아가기</span></button></div>}
       </div>
     </div>
   );

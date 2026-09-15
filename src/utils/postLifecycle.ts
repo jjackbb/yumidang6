@@ -16,6 +16,11 @@ export interface LifecycleState {
   appointments: Appointment[];
   notifications: NotificationItem[];
 }
+export const partnerGenderLabel = {
+  any: '성별 무관',
+  female: '여성만 신청 가능',
+  male: '남성만 신청 가능',
+} as const;
 export const isOpenRequest = (request: JoinRequest) =>
   ['pending', 'reconfirming'].includes(request.status);
 export const isConfirmedAppointment = (item: Appointment) =>
@@ -50,6 +55,7 @@ export function conditionsOf(post: MeetupPost): PostConditions {
     publicLocation,
     secretLocation,
     partnerPreferences,
+    partnerGender,
     companionType,
     proDetails,
   } = post;
@@ -64,6 +70,7 @@ export function conditionsOf(post: MeetupPost): PostConditions {
     publicLocation,
     secretLocation,
     partnerPreferences,
+    partnerGender: partnerGender || 'any',
     companionType: companionType || 'free',
     proDetails,
   };
@@ -104,6 +111,11 @@ export function conditionChanges(
       before: '확정 후 공개',
       after: '상세 장소가 변경됐어요. 공개 장소와 조건을 먼저 확인해 주세요.',
     });
+  compare(
+    '상대 성별 조건',
+    partnerGenderLabel[before.partnerGender || 'any'],
+    partnerGenderLabel[after.partnerGender || 'any'],
+  );
   compare('상대 조건', before.partnerPreferences, after.partnerPreferences);
   if (
     before.companionType !== after.companionType ||

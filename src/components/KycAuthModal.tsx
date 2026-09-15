@@ -5,32 +5,24 @@ interface KycAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAlreadyVerified: boolean;
-  onKycSuccess: () => void;
 }
 
 export const KycAuthModal: React.FC<KycAuthModalProps> = ({
   isOpen,
   onClose,
   isAlreadyVerified,
-  onKycSuccess,
 }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessing = false;
   const [isComplete, setIsComplete] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleStartKyc = () => {
-    setIsProcessing(true);
-    // 외부 KYC PG 모듈 연동 시뮬레이션 (1.5초)
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsComplete(true);
-      onKycSuccess();
-    }, 1500);
-  };
+  // Preview only: no identity provider or payment is called, so no verified badge is granted.
+  const handleStartKyc = () => setIsComplete(true);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="선택형 KYC 본인확인" onKeyDown={event => { if (event.key === 'Escape') onClose(); }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300 text-left"
         onClick={(e) => e.stopPropagation()}
@@ -44,6 +36,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
             <h3 className="text-[17px] font-bold text-gray-900">선택형 KYC 본인확인 센터</h3>
           </div>
           <button
+            aria-label="본인확인 창 닫기"
             onClick={onClose}
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
@@ -52,23 +45,21 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
         </div>
 
         <div className="p-5 space-y-4">
-          {isAlreadyVerified || isComplete ? (
+          {isAlreadyVerified ? (
             <div className="text-center py-6 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-                <CheckCircle2 className="w-10 h-10" />
+              <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-600" />
+              <h4 className="text-[19px] font-bold text-gray-900">본인확인 완료 계정이에요</h4>
+              <button onClick={onClose} className="w-full mt-4 py-3 bg-[#6c2cf5] text-white font-bold rounded-xl text-sm">확인</button>
+            </div>
+          ) : isComplete ? (
+            <div className="text-center py-6 space-y-3">
+              <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                <Sparkles className="w-9 h-9" />
               </div>
-              <h4 className="text-[19px] font-bold text-gray-900">
-                KYC 본인확인이 완료되었습니다
-              </h4>
+              <h4 className="text-[19px] font-bold text-gray-900">인증 흐름 미리보기</h4>
               <p className="text-xs text-gray-600 leading-relaxed max-w-[300px] mx-auto">
-                프로필에 <strong>[공식 KYC 인증]</strong> 뱃지가 부여되어 상대방에게 최고 수준의 신뢰도를 제공합니다.
+                실제 서비스에서는 여기서 외부 신원확인 화면으로 이동해요. 이번 체험에서는 신원확인·결제를 진행하지 않았고, <strong>인증 배지도 부여되지 않아요.</strong>
               </p>
-              <div className="pt-2">
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f0edff] text-[#6c2cf5] text-xs font-bold shadow-2xs">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>공식 인증회원 뱃지 활성화</span>
-                </span>
-              </div>
               <button
                 onClick={onClose}
                 className="w-full mt-4 py-3 bg-[#6c2cf5] text-white font-bold rounded-xl text-sm transition-colors"
@@ -119,7 +110,7 @@ export const KycAuthModal: React.FC<KycAuthModalProps> = ({
                 ) : (
                   <>
                     <ShieldCheck className="w-5 h-5" />
-                    <span>2,500원 결제 및 KYC 인증 시작</span>
+                    <span>인증 흐름 미리보기 (결제·인증 없음)</span>
                   </>
                 )}
               </button>

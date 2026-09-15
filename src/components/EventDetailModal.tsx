@@ -98,21 +98,24 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
             </div>
 
             {/* Current Meetups For This Event */}
-            <div className="pt-1">
+            <section aria-label="이 행사 관련 공고" data-event-id={event.id} className="pt-1">
               <div className="flex items-center justify-between mb-3 px-1">
                 <h4 className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-[#6c2cf5]" />
                   <span>이 이벤트 관련 1:1 동행 모임</span>
                 </h4>
-                <span className="text-xs text-[#6c2cf5] font-bold">{relatedPosts.length}개 진행 중</span>
+                <span className="text-xs text-[#6c2cf5] font-bold" data-related-count={relatedPosts.length}>{relatedPosts.length}개</span>
               </div>
+              <p className="text-[11px] text-gray-500 px-1 mb-3">이 행사로 작성된 공고만 보여요. 일반 공고는 탐색에서 찾을 수 있어요.</p>
 
               <div className="space-y-3">
-                {relatedPosts.length === 0 && <p className="bg-white rounded-2xl p-5 text-xs text-gray-500">{status === 'ended' ? '종료된 행사입니다.' : '아직 이 행사에 등록된 동행이 없어요.'}</p>}
+                {relatedPosts.length === 0 && <p className="bg-white rounded-2xl p-5 text-xs text-gray-500">{status === 'ended' ? '종료된 행사예요. 등록된 동행이 없어요.' : '아직 이 행사에 등록된 동행이 없어요.'}</p>}
                 {relatedPosts.map((post) => (
                   <button
                     type="button"
                     onClick={() => onSelectPost(post)}
+                    data-post-id={post.id}
+                    data-event-id={post.eventId}
                     key={post.id}
                     className="w-full text-left p-5 rounded-[24px] bg-white hover:shadow-md transition-all shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-3"
                   >
@@ -127,12 +130,12 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                       </div>
                       <span
                         className={`text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
-                          post.currentMembers >= 2
+                          post.status !== 'recruiting'
                             ? 'bg-gray-100 text-gray-400'
                             : 'bg-purple-50 text-[#6c2cf5]'
                         }`}
                       >
-                        {post.currentMembers >= 2 ? '2/2명 (마감)' : '1/2명 (모집중)'}
+                        {post.status !== 'recruiting' ? postStatusLabel(post) : '1/2명 (모집중)'}
                       </span>
                     </div>
 
@@ -152,7 +155,12 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                   </button>
                 ))}
               </div>
-            </div>
+              <button type="button" disabled={status === 'ended'} aria-describedby={status === 'ended' ? 'event-create-blocked' : undefined} onClick={() => onCreateForEvent(event)}
+                className="mt-4 w-full py-3.5 rounded-2xl bg-[#6c2cf5] text-white text-sm font-bold disabled:bg-gray-200 disabled:text-gray-500">
+                이 행사로 동행 모집하기
+              </button>
+              {status === 'ended' && <p id="event-create-blocked" className="mt-2 text-[11px] text-gray-500 text-center">종료된 행사라 새 동행을 모집할 수 없어요. 행사 정보와 기존 공고는 계속 볼 수 있어요.</p>}
+            </section>
           </div>
         </div>
       </div>
