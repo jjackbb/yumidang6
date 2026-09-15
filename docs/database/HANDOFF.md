@@ -1,5 +1,7 @@
 # Supabase 기본 스키마 / 연결 상태
 
+후속 작업: 실제 DB API와 로컬 화면을 연결했다. 최신 검증 결과와 배포 대기 상태는 [실제 DB 연결 인수인계](INTEGRATION.md)를 기준으로 확인한다. 아래는 초기 스키마 생성 당시 기록이다.
+
 확인일: 2026-09-15. 대상: **yumidang / fiaxchvyywpqbwbcuzfz**.
 
 ## 완료한 범위

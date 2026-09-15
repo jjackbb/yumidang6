@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-09-15T07:24:56.144Z",
+  "checked_at": "2026-09-15T07:45:46.011Z",
   "base": "http://127.0.0.1:3023",
   "cases": [
     "account 1 login and Me",
@@ -7,9 +7,11 @@
     "post form saved to server",
     "post survives reload",
     "other account applies via UI",
-    "host accepts and opens existing room"
+    "host accepts and opens existing room",
+    "message persisted and read by other account",
+    "failed write shows error without a saved message"
   ],
   "errors": [],
-  "postId": "a7b54a36-700f-44e2-ae6e-3761bf7e0e6c",
-  "title": "[화면 검증] 서버에 저장한 산책 1789457090773"
+  "postId": "ebbf5444-f633-47be-9f3e-a5375bfac5b5",
+  "title": "[화면 검증] 서버에 저장한 산책 1789458339623"
 }
