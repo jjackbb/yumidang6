@@ -402,7 +402,7 @@ fs.mkdirSync(out, { recursive: true });
       assert.match(await dashboard.innerText(), /취소 사유: 개인 사정/);
       assert.equal(
         await dashboard
-          .getByRole('button', { name: '동행 완료 처리', exact: true })
+          .getByRole('button', { name: '내 동행 완료 확인', exact: true })
           .isDisabled(),
         true,
       );

@@ -445,6 +445,7 @@ const pick = post => Object.fromEntries(SAVED_FIELDS.map(key => [key, post[key]]
 
   await run('E6', 'close and delete: Me reasons, requester reason, deleted link returns, closing is not completion', async page => {
     await asUser(page, YUMI);
+    const completedBeforeClose = (await stored(page)).appointments.filter(item => item.status === '동행 완료').length;
     const detail = await openOwnPost(page, /성수동 디저트/);
     await detail.getByRole('button', { name: '모집 조기 마감' }).click();
     await page.getByRole('dialog', { name: '모집 마감', exact: true }).getByRole('button', { name: '모집 마감하기' }).click();
@@ -454,7 +455,7 @@ const pick = post => Object.fromEntries(SAVED_FIELDS.map(key => [key, post[key]]
     const own = page.locator('[data-own-post="post-demo-host"]');
     assert.equal(await own.getAttribute('data-post-status'), 'closed');
     assert.match(await own.locator('[data-post-reason]').innerText(), /완료된 것은 아니에요/);
-    assert.match(await activity(page).getByRole('tab', { name: /완료/ }).innerText(), /완료 0/, 'closing does not add a completion');
+    assert.equal((await stored(page)).appointments.filter(item => item.status === '동행 완료').length, completedBeforeClose, 'closing does not add a completion');
 
     await asUser(page, 'user-req-1');
     await nav(page, 'me');
@@ -477,11 +478,12 @@ const pick = post => Object.fromEntries(SAVED_FIELDS.map(key => [key, post[key]]
     return 'closed/deleted reasons in Me; requester reason; deleted link returns';
   });
 
-  await run('E7', 'Me status and invitation skeleton at 1280×900', async page => {
+  await run('E7', 'Me status and invitation management at 1280×900', async page => {
     await asUser(page, YUMI);
     await nav(page, 'me');
     const invitations = page.getByRole('region', { name: '초대 관리', exact: true });
-    assert.match(await invitations.innerText(), /받은 초대 0/);
+    assert.match(await invitations.innerText(), /받은 초대 4/);
+    assert.equal(await invitations.locator('[data-invitation-id]').count(), 4);
     await invitations.getByRole('tab', { name: /보낸 초대/ }).click();
     assert.match(await invitations.innerText(), /아직 보낸 초대가 없어요/);
     assert.equal(await activity(page).getByRole('tab', { name: /확정/ }).getAttribute('aria-selected'), 'true', 'Me opens on confirmed meetups');

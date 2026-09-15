@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
+import { emptyCloudData } from './cloud/data';
+import { useCloud } from './cloud/useCloud';
 import { useAuth } from './auth/useAuth';
 import { currentUserFromAuth } from './auth/user';
 import { useAppRoute } from './auth/useAppRoute';
@@ -80,6 +82,7 @@ export default function App() {
   const [prototypeAuth] = useState(usesPrototypeAuth);
   const storageKey = demoMode ? STORAGE_KEYS.demo : STORAGE_KEYS.app;
   const [boot] = useState(() => {
+    if (!prototypeAuth) return { data: emptyCloudData(), issue: null };
     const loaded = loadPrototype(browserStorage(), storageKey);
     return { data: loaded.data || createSeedData(), issue: loaded.issue };
   });
@@ -334,6 +337,7 @@ export default function App() {
   const activePartner = activeRoom?.members.find(member => member.id !== currentUser?.id);
   const myAppointments = appointments.filter(item => currentUser && item.participantIds?.includes(currentUser.id));
   const openRoom = (room: ChatRoom) => {
+    if (!prototypeAuth) void cloud.run('read_notifications', { roomId: room.id });
     if (!roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canView) return;
     setActiveRoomId(room.id);
     if (room.appointmentId) setActiveAppointmentId(room.appointmentId);
@@ -352,6 +356,7 @@ export default function App() {
   };
   const updateRoomDraft = (id: string, draft: string) => setChatRooms(prev => prev.map(room => room.id === id && room.members.some(member => member.id === currentUser?.id) ? { ...room, draft } : room));
   const sendRoomMessage = (id: string, text: string, sample = false) => {
+    if (!prototypeAuth) { if (!sample) void cloud.run('message', { roomId: id, text, messageId: crypto.randomUUID() }, () => updateRoomDraft(id, '')); return; }
     const room = chatRooms.find(room => room.id === id);
     if (!room || !text.trim() || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canSend || (sample && currentUser?.id !== DEMO_USER_ID)) return;
     const senderId = sample ? room.members.find(member => member.id !== currentUser!.id)!.id : currentUser!.id;
@@ -361,6 +366,7 @@ export default function App() {
     if (recipientId) setNotifications(prev => [{ id: `notif-${message.id}`, title: sample ? '새 동행 메시지 · 시연' : '새 동행 메시지', description: text, roomId: id, recipientId, createdAt: clock().toISOString(), targetType: 'room', targetId: id, type: 'chat', time: '방금', read: false }, ...prev]);
   };
   const proposeRoomSchedule = (id: string, proposal: ScheduleProposal) => {
+    if (!prototypeAuth) { const target = chatRooms.find(room => room.id === id)?.appointmentId; if (target) void cloud.run('propose', { id: target, ...proposal }); return; }
     const room = chatRooms.find(room => room.id === id);
     const target = appointments.find(item => item.id === room?.appointmentId);
     if (!room || !target || target.status === '동행 완료' || !roomAccess(room, currentUser?.id, joinRequests, appointments, meetupPosts, clock()).canSend || !isValidMeetupRange(proposal.startsAt, proposal.endsAt)) return;
@@ -368,6 +374,7 @@ export default function App() {
     setChatRooms(prev => prev.map(item => item.id === id ? { ...item, messages: [...item.messages, { id: crypto.randomUUID(), senderId: currentUser!.id, text: '일정·장소 변경을 제안했어요.', createdAt: new Date().toISOString(), proposal }] } : item));
   };
   const resolveRoomProposal = (roomId: string, messageId: string, accepted: boolean, sample = false, ignoreConflict = false) => {
+    if (!prototypeAuth) { if (!sample) void cloud.run('resolve_proposal', { id: messageId, accepted }); return; }
     const room = chatRooms.find(item => item.id === roomId);
     const message = room?.messages.find(item => item.id === messageId);
     const proposal = message?.proposal;
@@ -386,6 +393,15 @@ export default function App() {
   };
   const [notifications, setNotifications] = useState<NotificationItem[]>(boot.data.notifications);
 
+  const cloud = useCloud(!prototypeAuth, auth.user?.id || null, auth.status === 'loading', data => {
+    setMeetupPosts(data.posts); setJoinRequests(data.requests); setAppointments(data.appointments);
+    setChatRooms(previous => data.rooms.map(room => ({ ...room, draft: previous.find(old => old.id === room.id)?.draft || '' })));
+    setNotifications(data.notifications); setFavorites(data.favorites); setInvitations(data.invitations);
+    setCompletions(data.completions); setAppointmentReviews(data.appointmentReviews);
+    setNotificationSettings(data.notificationSettings); setBlocks(data.blocks); setUsers(data.users);
+    setCurrentUser(data.users.find(user => user.id === auth.user?.id) || null);
+  });
+
   // Save every shared record under the versioned key (tab changes, reloads, window close).
   const snapshot = (): PrototypeData => ({
     posts: meetupPosts, requests: joinRequests, rooms: chatRooms, appointments, notifications, reviews,
@@ -399,7 +415,7 @@ export default function App() {
     setStorageIssue('issue' in result ? result.issue : null);
   };
   useEffect(() => {
-    if (autosave) persist();
+    if (prototypeAuth && autosave) persist();
   }, [autosave, meetupPosts, joinRequests, chatRooms, appointments, notifications, reviews, favorites, invitations, completions, appointmentReviews, notificationSettings, blocks, users, currentUser, demoSettings, activeTab]);
   const applyData = (data: PrototypeData, keepUserId?: string) => {
     setMeetupPosts(data.posts); setJoinRequests(data.requests); setChatRooms(data.rooms); setAppointments(data.appointments);
@@ -448,6 +464,7 @@ export default function App() {
     return true;
   };
   useEffect(() => {
+    if (!prototypeAuth) return;
     const next = expirePosts(lifecycleState(), now);
     if (next) applyLifecycle(next);
     const delay = Math.min(...meetupPosts.filter(post => post.status === 'recruiting').map(post => Date.parse(recruitmentDeadline(post) || '') - clock().getTime()).filter(ms => ms > 0));
@@ -459,6 +476,7 @@ export default function App() {
     setSelectedPostForDetail(previous => previous ? meetupPosts.find(post => post.id === previous.id) || null : null);
   }, [meetupPosts]);
   useEffect(() => {
+    if (!prototypeAuth) return;
     setInvitations(previous => {
       let changed = false;
       const next = previous.map(item => {
@@ -482,6 +500,7 @@ export default function App() {
   const unreadNotifCount = myNotifications.filter((n) => !n.read).length;
 
   const handleMarkAllNotificationsAsRead = () => {
+    if (!prototypeAuth) { void cloud.run('read_notifications'); return; }
     setNotifications((prev) => prev.map((n) => n.recipientId === currentUser?.id ? { ...n, read: true } : n));
   };
 
@@ -511,6 +530,7 @@ export default function App() {
   };
 
   const handleCreateMeetup = (newPost: MeetupPost, ignoreConflict = false) => {
+    if (!prototypeAuth) { void cloud.run('create_post', { ...newPost }, () => { setIsCreateModalOpen(false); setCreateContext(null); }); return; }
     if (!currentUser || newPost.authorId !== currentUser.id || !isRecruiting(newPost, clock())) return false;
     if (!ignoreConflict && warnConflict({ kind: 'create', post: newPost }, [currentUser.id], newPost.startsAt, newPost.endsAt)) return false;
     setMeetupPosts((prev) => [newPost, ...prev]);
@@ -547,6 +567,7 @@ export default function App() {
   };
 
   const handleUpdatePost = (updatedPost: MeetupPost) => {
+    if (!prototypeAuth) { void cloud.run('update_post', { ...updatedPost }, () => { setIsCreateModalOpen(false); setEditingPost(null); }); return; }
     if (!applyLifecycle(updateRecruitingPost(lifecycleState(), updatedPost, currentUser?.id, clock()))) return false;
     setSelectedPostForDetail(updatedPost); setEditingPost(null);
     return true;
@@ -554,6 +575,7 @@ export default function App() {
   const handleClosePost = (postId: string) => setPostAction({ id: postId, mode: 'closed' });
   const handleDeletePost = (postId: string) => setPostAction({ id: postId, mode: 'deleted' });
   const confirmPostAction = () => {
+    if (!prototypeAuth) { if (postAction) void cloud.run(postAction.mode === 'deleted' ? 'delete_post' : 'close_post', { id: postAction.id }, () => setPostAction(null)); return; }
     if (!postAction) return;
     const succeeded = applyLifecycle(closePost(lifecycleState(), postAction.id, postAction.mode, currentUser?.id, clock()));
     if (succeeded) setLifecycleNotice(postAction.mode === 'deleted' ? '공고를 삭제했어요. 이전 신청과 대화 기록은 남아 있어요.' : '모집을 마감했어요. 미확정 신청도 함께 종료됐어요.');
@@ -571,6 +593,7 @@ export default function App() {
     return post && requester && !requestEligibility(post, requester).ok ? '신청자가 현재 상대 조건에 맞지 않아 수락할 수 없어요. 조건을 되돌리거나 신청을 거절해 주세요.' : null;
   };
   const handleReconfirm = (requestId: string, revision: number, agree: boolean, simulate = false) => {
+    if (!prototypeAuth) { if (!simulate) void cloud.run('reconfirm', { id: requestId, revision, agree }); return; }
     const request = joinRequests.find(item => item.id === requestId);
     if (!request || !currentUser || (simulate && (currentUser.id !== DEMO_USER_ID || request.hostId !== currentUser.id))) return;
     const requester = userById(request.requesterId);
@@ -625,6 +648,7 @@ export default function App() {
 
   // Phase 3: Submit Join Request
   const handleSendJoinRequest = (postId: string, message: string, ignoreConflict = false) => {
+    if (!prototypeAuth) { void cloud.run('request', { postId, message }, result => { setIsJoinRequestModalOpen(false); setSelectedPostForJoin(null); setSelectedPostForDetail(null); setActiveRoomId(result.roomId || null); setActiveTab('chat'); }); return false; }
     const post = activeMeetupPosts.find((p) => p.id === postId);
     if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || !isRecruiting(post, clock()) || !message.trim() || !requestEligibility(post, currentUser).ok) return false;
     if (joinRequests.some(request => request.postId === post.id && request.requesterId === currentUser.id && ['pending', 'reconfirming', 'accepted'].includes(request.status))) {
@@ -686,6 +710,7 @@ export default function App() {
 
   // A request enables conversation; only the host's final acceptance confirms a match.
   const handleAcceptRequest = (requestId: string, simulateHost = false, ignoreConflict = false) => {
+    if (!prototypeAuth) { if (!simulateHost) void cloud.run('accept', { id: requestId }, result => { setActiveRoomId(result.roomId || null); setActiveTab('chat'); }); return; }
     const targetReq = joinRequests.find(item => item.id === requestId);
     if (!targetReq || !currentUser) return;
     if (simulateHost && (currentUser.id !== DEMO_USER_ID || targetReq.requesterId !== currentUser.id)) return;
@@ -717,6 +742,7 @@ export default function App() {
     setActiveRoomId(roomId); setActiveTab('chat');
   };
   const endRequest = (requestId: string, status: 'rejected' | 'cancelled', reason = '') => {
+    if (!prototypeAuth) { void cloud.run(status === 'rejected' ? 'reject' : 'cancel_request', { id: requestId, reason }, () => setCancellationTarget(null)); return false; }
     const request = joinRequests.find(item => item.id === requestId);
     if (!request || !isOpenRequest(request) || (status === 'rejected' ? request.hostId : request.requesterId) !== currentUser?.id) return false;
     const text = status === 'rejected' ? '작성자가 신청을 거절했어요.' : `신청자가 동행 신청을 취소했어요. 사유: ${reason}`;
@@ -735,6 +761,7 @@ export default function App() {
     if (currentUser && target.participantIds?.includes(currentUser.id) && isConfirmedAppointment(target)) setCancellationTarget({ id: target.id, kind: 'appointment', title: target.title });
   };
   const confirmCancellation = (reason: string) => {
+    if (!prototypeAuth) { if (cancellationTarget) void cloud.run(cancellationTarget.kind === 'appointment' ? 'cancel_appointment' : 'cancel_request', { id: cancellationTarget.id, reason }, () => setCancellationTarget(null)); return; }
     if (!cancellationTarget) return false;
     const success = cancellationTarget.kind === 'request' ? endRequest(cancellationTarget.id, 'cancelled', reason) : applyLifecycle(cancelConfirmedAppointment(lifecycleState(), cancellationTarget.id, reason, currentUser?.id, clock()));
     if (success) setCancellationTarget(null);
@@ -743,6 +770,7 @@ export default function App() {
 
   // Phase 4: Handle Emergency / No-Show Report Submit
   const handleReportSubmit = (reasonType: string, details: string) => {
+    if (!prototypeAuth) { const targetId = appointment?.participantIds?.find(id => id !== currentUser?.id); if (targetId) void cloud.run('report', { targetId, reason: reasonType, details }, () => setIsReportOpen(false)); return; }
     const reasonMap: Record<string, string> = {
       noshow: '20분 이상 미출현 (노쇼 발생)',
       harassment: '불쾌한 언행 / 비매너 / 성희롱',
@@ -768,6 +796,7 @@ export default function App() {
 
   // Phase 4: Send 10-minute Arrival Notice
   const handleSendArrivalNotice = () => {
+    if (!prototypeAuth) { const room = chatRooms.find(r => r.appointmentId === appointment?.id); if (room) sendRoomMessage(room.id, '약속 장소에 10분 내 도착 예정입니다!'); return; }
     if (!isConfirmedAppointment(appointment)) return;
     setNotifications((prev) => [
       {
@@ -792,6 +821,7 @@ export default function App() {
   };
 
   const handleCompleteAppointment = (target: Appointment) => {
+    if (!prototypeAuth) { void cloud.run('complete', { id: target.id }, () => { setReviewAppointmentId(target.id); setIsReviewModalOpen(true); }); return; }
     if (!currentUser) return;
     const result = createCompletionConfirmation(target, currentUser.id, completions, appointmentReviews, clock());
     if ('error' in result) { setLifecycleNotice(result.error); return; }
@@ -809,7 +839,8 @@ export default function App() {
     setIsReviewModalOpen(true);
   };
 
-  const handleSubmitReview = (reviewPayload: ReviewDraft): { ok: true } | { ok: false; error: string } => {
+  const handleSubmitReview = async (reviewPayload: ReviewDraft): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (!prototypeAuth) return await cloud.run('review', { id: reviewAppointment?.id, ...reviewPayload }) ? { ok: true } : { ok: false, error: '평가를 저장하지 못했어요. 안내를 확인해 주세요.' };
     if (!currentUser) return { ok: false, error: '로그인 후 평가해 주세요.' };
     const result = createAppointmentReview(reviewAppointment, currentUser.id, reviewPayload, completions, appointmentReviews, demoSettings.variants.review, clock());
     if ('error' in result) return result;
@@ -858,9 +889,10 @@ export default function App() {
     ]);
   };
 
-  const commitProfile = (patch: ProfilePatch) => { if (currentUser) setCurrentUser({ ...currentUser, ...patch }); };
+  const commitProfile = (patch: ProfilePatch) => { if (!prototypeAuth) { void cloud.run('profile', { ...patch }); return; } if (currentUser) setCurrentUser({ ...currentUser, ...patch }); };
   const selfMember = (user: CurrentUser): ChatMember => ({ id: user.id, displayName: user.maskedName, avatar: user.avatar });
   const toggleFavorite = (targetId: string) => {
+    if (!prototypeAuth) { void cloud.run('favorite', { targetId, saved: !isSavedBy(currentUser?.id || '', targetId, favorites) }); return; }
     if (!currentUser || targetId === currentUser.id || blocks.some(item => item.blockerId === currentUser.id && item.blockedId === targetId)) return;
     // Private one-way save: no notification is created for the target.
     setFavorites(prev => isSavedBy(currentUser.id, targetId, prev)
@@ -868,6 +900,7 @@ export default function App() {
       : [...prev, { ownerId: currentUser.id, targetId, savedAt: clock().toISOString(), notifyNewPosts: true }]);
   };
   const toggleFavoriteNotice = (targetId: string) => {
+    if (!prototypeAuth) { void cloud.run('favorite_notice', { targetId, enabled: !favorites.find(f => f.ownerId === currentUser?.id && f.targetId === targetId)?.notifyNewPosts }); return; }
     if (!currentUser) return;
     setFavorites(prev => prev.map(item => item.ownerId === currentUser.id && item.targetId === targetId ? { ...item, notifyNewPosts: !item.notifyNewPosts } : item));
   };
@@ -878,6 +911,7 @@ export default function App() {
     else if (post) setSelectedChatProfile(postAuthor(post));
   };
   const inviteFavorite = (targetId: string, postId: string) => {
+    if (!prototypeAuth) { void cloud.run('invite', { targetId, postId }); return; }
     if (!currentUser || !isSavedBy(currentUser.id, targetId, favorites)) return;
     const post = meetupPosts.find(item => item.id === postId);
     const blocked = blocks.some(item => (item.blockerId === currentUser.id && item.blockedId === targetId) || (item.blockerId === targetId && item.blockedId === currentUser.id));
@@ -892,6 +926,7 @@ export default function App() {
     setLifecycleNotice('공개된 공고로 초대했어요. 상대가 직접 신청하고 작성자가 수락해야 확정됩니다.');
   };
   const openInvitation = (target: Invitation) => {
+    if (!prototypeAuth) { void cloud.run('view_invitation', { id: target.id }, () => setSelectedPostForDetail(meetupPosts.find(p => p.id === target.postId) || null)); return; }
     if (!currentUser || ![target.senderId, target.recipientId].includes(currentUser.id)) return;
     const post = meetupPosts.find(item => item.id === target.postId);
     setInvitations(prev => prev.map(item => item.id === target.id && item.recipientId === currentUser.id && item.status === 'received' ? { ...item, status: 'viewed', viewedAt: clock().toISOString() } : item));
@@ -900,6 +935,7 @@ export default function App() {
     if (!post) setLifecycleNotice('삭제된 공고예요. 초대 기록은 Me에 남아 있어요.');
   };
   const changeStrangerInvitationNotice = (enabled: boolean) => {
+    if (!prototypeAuth) { void cloud.run('notification_settings', { enabled }); return; }
     if (!currentUser) return;
     setNotificationSettings(prev => prev.some(item => item.userId === currentUser.id)
       ? prev.map(item => item.userId === currentUser.id ? { ...item, strangerInvitations: enabled } : item)
@@ -908,6 +944,7 @@ export default function App() {
   const activeAppointmentsWith = (targetId: string) => appointments.filter(item =>
     currentUser && item.participantIds?.includes(currentUser.id) && item.participantIds.includes(targetId) && isConfirmedAppointment(item));
   const confirmBlock = (member: ChatMember) => {
+    if (!prototypeAuth) { void cloud.run('block', { targetId: member.id }, () => setSafetyDialog(null)); return; }
     if (!currentUser || member.id === currentUser.id) return;
     const impact = blockImpact(appointments, completions, currentUser.id, member.id);
     if (impact.mode === 'hold') { setLifecycleNotice(`${impact.code} 검토 보류: ${impact.reason}`); return; }
@@ -981,6 +1018,7 @@ export default function App() {
   };
   const currentNotificationSettings = notificationSettingsFor(notificationSettings, currentUser?.id || '');
   const openNotificationTarget = (item: NotificationItem) => {
+    if (!prototypeAuth) void cloud.run('read_notifications', { id: item.id });
     if (!currentUser || item.recipientId !== currentUser.id) return;
     setNotifications(prev => prev.map(value => value.id === item.id ? { ...value, read: true } : value));
     setIsNotificationsOpen(false);
@@ -1008,7 +1046,7 @@ export default function App() {
     if (item.action === 'match_requests') { setRequestTab('received'); setActiveTab('me'); }
   };
   const detailEvent = selectedPostForDetail?.eventId ? eventById(selectedPostForDetail.eventId) : undefined;
-  const dashboardPartner = chatRooms.find(room => room.appointmentId === appointment.id)?.members.find(member => member.id !== currentUser?.id);
+  const dashboardPartner = chatRooms.find(room => room.appointmentId === appointment?.id)?.members.find(member => member.id !== currentUser?.id);
   const dashboardProfile = dashboardPartner ? profileForMember(dashboardPartner) : undefined;
   const completionActionsFor = (target: Appointment) => ({
     state: completionReviewState(target, currentUser?.id, completions, appointmentReviews, now),
@@ -1052,6 +1090,7 @@ export default function App() {
     }
   };
 
+  if (!prototypeAuth && !cloud.ready) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6"><p role="status">{cloud.error || '서버에서 데이터를 불러오고 있어요…'}</p><button className="text-purple-600 underline" onClick={() => void cloud.refresh()}>다시 불러오기</button></div>;
   return (
     <div className="min-h-screen bg-[#f2f4f8] flex justify-center selection:bg-purple-100">
       {/* Mobile container simulating the exact mobile app interface */}
@@ -1074,6 +1113,8 @@ export default function App() {
         </div>}
         {prototypeAuth && !demoMode && <div role="status" className="bg-amber-50 px-4 py-2 text-xs text-amber-950 border-b border-amber-100">프로토타입 · 테스트 인증번호 123456 · 실제 문자 발송 없음</div>}
         {/* Top Header */}
+        {!prototypeAuth && <div className="bg-purple-50 px-4 py-2 text-xs text-purple-900">공용 DB 테스트 · 테스트 번호 01000000001~3 / 코드 123456 · 개인정보를 입력하지 마세요.</div>}
+        {!prototypeAuth && (cloud.busy || cloud.error) && <div role={cloud.error ? 'alert' : 'status'} className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] max-w-md rounded-xl bg-white border shadow-lg px-4 py-3 text-sm">{cloud.error || '서버에 저장 중…'}{cloud.error && <button className="ml-3 underline" onClick={() => void cloud.refresh()}>다시 불러오기</button>}</div>}
         <Header
           unreadCount={unreadNotifCount}
           onOpenNotifications={() => currentUser ? setIsNotificationsOpen(true) : setIsAuthModalOpen(true)}
@@ -1192,7 +1233,7 @@ export default function App() {
               onInviteFavorite={inviteFavorite}
               onOpenFavoriteProfile={openProfileById}
               onChangeStrangerInvitationNotice={changeStrangerInvitationNotice}
-              onUnblock={targetId => { setBlocks(prev => prev.filter(item => !(item.blockerId === currentUser.id && item.blockedId === targetId))); setLifecycleNotice('차단을 해제했어요. 이전에 취소된 동행은 복구되지 않아요.'); }}
+              onUnblock={targetId => { if (!prototypeAuth) { void cloud.run('unblock', { targetId }); return; } setBlocks(prev => prev.filter(item => !(item.blockerId === currentUser.id && item.blockedId === targetId))); setLifecycleNotice('차단을 해제했어요. 이전에 취소된 동행은 복구되지 않아요.'); }}
               onApplyAiFilters={filters => { setExploreFilters(filters); setActiveTab('explore'); setLifecycleNotice('수정 가능한 예시 조건을 둘러보기에 적용했어요. 실제 AI 호출 결과는 아니에요.'); }}
               acceptBlockedReason={acceptBlockedReason}
             />
@@ -1208,9 +1249,9 @@ export default function App() {
         />
 
         {/* Modal: 참여 대시보드 */}
-        <DashboardModal
+        {appointment && <DashboardModal
           appointment={appointment}
-          isOpen={isDashboardOpen && Boolean(currentUser && appointment.participantIds?.includes(currentUser.id))}
+          isOpen={isDashboardOpen && Boolean(currentUser && appointment?.participantIds?.includes(currentUser.id))}
           onClose={() => setIsDashboardOpen(false)}
           onOpenChat={() => {
             setIsDashboardOpen(false);
@@ -1225,7 +1266,7 @@ export default function App() {
           partnerProfile={dashboardProfile}
           onOpenPartnerProfile={() => dashboardPartner && setSelectedChatProfile(dashboardPartner)}
           completionActions={completionActionsFor(appointment)}
-        />
+        />}
 
         {/* Modal: 이벤트 상세 & 불꽃축제 동행 모임 */}
         {isEventsOpen && <EventsView now={now} onClose={() => setIsEventsOpen(false)} onSelectEvent={setSelectedEvent} />}
@@ -1381,7 +1422,7 @@ export default function App() {
           onDone={() => { setProfileEditor(null); setLifecycleNotice(profileEditor.mode === 'setup' ? '프로필을 저장했어요. 이제 동행을 신청하거나 공고를 올릴 수 있어요.' : '프로필 변경을 저장했어요.'); }}
         />}
         {privateAreaAllowed && safetyDialog?.kind === 'report' && <ReportUserDialog targetName={safetyDialog.member.displayName} onClose={() => setSafetyDialog(null)}
-          onSubmit={() => { setSafetyDialog(null); setLifecycleNotice('신고를 예시로 접수했어요. 실제 운영팀 전달이나 자동 제재는 없어요.'); }} />}
+          onSubmit={(reason, details) => { if (!prototypeAuth) { void cloud.run('report', { targetId: safetyDialog.member.id, reason, details }, () => { setSafetyDialog(null); setLifecycleNotice('신고를 서버에 접수했어요. 자동 제재는 적용되지 않아요.'); }); return; } setSafetyDialog(null); setLifecycleNotice('신고를 예시로 접수했어요. 실제 운영팀 전달이나 자동 제재는 없어요.'); }} />}
         {privateAreaAllowed && safetyDialog?.kind === 'block' && <BlockUserDialog targetName={safetyDialog.member.displayName}
           affectedTitles={activeAppointmentsWith(safetyDialog.member.id).map(item => item.title)}
           holdReason={currentUser && blockImpact(appointments, completions, currentUser.id, safetyDialog.member.id).mode === 'hold' ? (blockImpact(appointments, completions, currentUser.id, safetyDialog.member.id) as Extract<ReturnType<typeof blockImpact>, { mode: 'hold' }>).reason : undefined}
@@ -1414,6 +1455,7 @@ export default function App() {
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
           appointment={reviewAppointment}
+          partnerName={partnerOf(reviewAppointment)?.displayName || reviewAppointment.partnerName}
           variant={demoSettings.variants.review}
           state={completionReviewState(reviewAppointment, currentUser?.id, completions, appointmentReviews, now)}
           ownReview={appointmentReviews.find(item => item.appointmentId === reviewAppointment.id && item.reviewerId === currentUser?.id)}

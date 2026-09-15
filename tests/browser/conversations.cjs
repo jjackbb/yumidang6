@@ -30,7 +30,8 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
     p.on('pageerror', (e) => result.errors.push(e.message));
     p.on('dialog', (d) => d.accept());
     await p.clock.install({ time: new Date('2026-09-15T12:00:00+09:00') });
-    await p.goto(url, { waitUntil: 'networkidle' });
+    await p.goto(url, { waitUntil: 'domcontentloaded' });
+    await p.locator('header').waitFor();
     try {
       await fn(p);
       assert.equal(
@@ -98,7 +99,7 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
     await p.getByRole('button', { name: '메시지 보내기' }).click();
   }
   await check(
-    'anonymous notification requires login then opens the correct request',
+    'anonymous notification content stays private, then login opens the correct request',
     async (p) => {
       await nav(p, 'chat');
       assert.equal(await p.locator('[data-room-id]').count(), 0);
@@ -107,11 +108,13 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
         0,
       );
       await p.locator('#btn-notifications').click();
+      assert.equal(await p.locator('[data-notification-id]').count(), 0, 'anonymous user saw addressed notification content');
+      await authenticate(p);
+      await p.locator('#btn-notifications').click();
       await p
         .locator('[data-notification-id="notif-req-init-2"]')
         .getByRole('button')
         .click();
-      await authenticate(p);
       assert.equal(
         await room(p).getAttribute('data-active-room'),
         'room-req-init-2',
@@ -313,13 +316,15 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
       );
       assert.equal(
         await p
-          .getByRole('button', { name: '동행 완료 처리', exact: true })
+          .getByRole('button', { name: '내 동행 완료 확인', exact: true })
           .isDisabled(),
         false,
       );
       await p
-        .getByRole('button', { name: '동행 완료 처리', exact: true })
+        .getByRole('button', { name: '내 동행 완료 확인', exact: true })
         .click();
+      await p.getByRole('dialog', { name: '동행 평가' }).waitFor();
+      await p.getByRole('button', { name: '평가창 닫기', exact: true }).click();
       assert.equal(
         await p
           .getByRole('button', { name: '평가 남기기', exact: true })
@@ -329,7 +334,7 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
       await open(p, 'room-appt-walk');
       assert.equal(
         await p
-          .getByRole('button', { name: '동행 완료 처리', exact: true })
+          .getByRole('button', { name: '내 동행 완료 확인', exact: true })
           .isDisabled(),
         true,
       );
@@ -339,14 +344,14 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
       );
       assert.equal(
         await p
-          .getByRole('button', { name: '동행 완료 처리', exact: true })
+          .getByRole('button', { name: '내 동행 완료 확인', exact: true })
           .isDisabled(),
         true,
       );
       await p.clock.fastForward(60000);
       assert.equal(
         await p
-          .getByRole('button', { name: '동행 완료 처리', exact: true })
+          .getByRole('button', { name: '내 동행 완료 확인', exact: true })
           .isDisabled(),
         false,
       );
@@ -392,19 +397,13 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
     1280,
   );
   await check(
-    'review regression 14:50/14:59 locked → 15:00 complete → review once, close/reopen and another appointment isolated',
+    'review regression 14:50/14:59 locked → 15:00 personal completion → private review, reopen and appointment isolation',
     async (p) => {
       await login(p);
       await p.locator('#nav-tab-me').click();
       await p.getByRole('button', { name: /강\*훈 님과의 공원 산책/ }).click();
-      const done = p.getByRole('button', {
-        name: '동행 완료 처리',
-        exact: true,
-      });
-      const review = p.getByRole('button', {
-        name: '평가 남기기',
-        exact: true,
-      });
+      const done = p.getByRole('button', { name: '내 동행 완료 확인', exact: true });
+      const review = p.getByRole('button', { name: '평가 남기기', exact: true });
       assert.equal(await done.isDisabled(), true);
       assert.equal(await review.isDisabled(), true);
       async function jump(iso) {
@@ -415,81 +414,29 @@ const url = process.env.CHECK_URL || 'http://127.0.0.1:4176';
       assert.equal(await done.isDisabled(), true);
       await jump('2026-09-22T14:59:00+09:00');
       assert.equal(await done.isDisabled(), true);
-      await done.scrollIntoViewIfNeeded();
       await p.screenshot({ path: out + '/review-before-end.png' });
       await jump('2026-09-22T15:00:00+09:00');
       assert.equal(await done.isDisabled(), false);
       assert.equal(await review.isDisabled(), true);
       await p.screenshot({ path: out + '/review-at-end.png' });
       await done.click();
-      assert.equal(await review.isDisabled(), false);
-      await review.click();
-      await p
-        .locator('textarea')
-        .fill('종료 시각 이후 작성한 산책 후기입니다.');
-      await p
-        .getByRole('button', {
-          name: '블라인드 평가 안심 제출하기',
-          exact: true,
-        })
-        .click();
-      await p.getByRole('button', { name: '평가창 닫기', exact: true }).click();
-      await p
-        .getByRole('button', { name: '제출한 평가 확인', exact: true })
-        .click();
-      assert.match(
-        await p.locator('body').innerText(),
-        /종료 시각 이후 작성한 산책 후기입니다/,
-      );
-      assert.equal(
-        await p
-          .getByRole('button', {
-            name: '블라인드 평가 안심 제출하기',
-            exact: true,
-          })
-          .count(),
-        0,
-      );
-      await p
-        .getByRole('button', {
-          name: '상대방 평가 도착 시연 (테스트용)',
-          exact: true,
-        })
-        .click();
-      await p.clock.fastForward(5000);
-      await p.getByRole('button', { name: '평가창 닫기', exact: true }).click();
-      await p
-        .getByRole('button', { name: '제출한 평가 확인', exact: true })
-        .click();
-      assert.equal(
-        await p
-          .getByRole('button', {
-            name: '상대방 평가 도착 시연 (테스트용)',
-            exact: true,
-          })
-          .count(),
-        0,
-      );
-      await p.getByRole('button', { name: '평가창 닫기', exact: true }).click();
-      await p
-        .getByRole('button', { name: '참여 대시보드 닫기', exact: true })
-        .click();
-      assert.match(await p.locator('main').innerText(), /52/);
-      await p
-        .getByRole('button', { name: /조\*미 님과의 강남맛집 식사 동행/ })
-        .click();
-      assert.equal(
-        await p
-          .getByRole('button', { name: '동행 완료 처리', exact: true })
-          .isDisabled(),
-        false,
-      );
-      assert.equal(
-        await p
-          .getByRole('button', { name: '평가 남기기', exact: true })
-          .isDisabled(),
-        true,
-      );
+      let modal = p.getByRole('dialog', { name: '동행 평가' });
+      await modal.getByRole('button', { name: '친절하고 배려해요', exact: true }).click();
+      await modal.getByLabel(/선택 한마디/).fill('종료 시각 이후 작성한 산책 후기입니다.');
+      await modal.getByRole('button', { name: '평가 제출하기', exact: true }).click();
+      assert.match(await modal.innerText(), /7일 뒤에도 자동 공개되지 않습니다/);
+      await modal.getByRole('button', { name: '닫기', exact: true }).click();
+      const waiting = p.getByRole('button', { name: '상대 평가 대기 중', exact: true });
+      assert.equal(await waiting.isDisabled(), false);
+      await waiting.click();
+      modal = p.getByRole('dialog', { name: '동행 평가' });
+      assert.match(await modal.innerText(), /상대가 평가를 제출할 때까지/);
+      await modal.getByRole('button', { name: '평가창 닫기', exact: true }).click();
+      await p.getByRole('button', { name: '참여 대시보드 닫기', exact: true }).click();
+      assert.match(await p.locator('main').innerText(), /50/);
+      await p.getByRole('button', { name: /조\*미 님과의 강남맛집 식사 동행/ }).click();
+      assert.equal(await p.getByRole('button', { name: '내 동행 완료 확인', exact: true }).isDisabled(), false);
+      assert.equal(await p.getByRole('button', { name: '평가 남기기', exact: true }).isDisabled(), true);
     },
   );
 

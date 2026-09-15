@@ -17,8 +17,8 @@
     {
       "id": "P3",
       "name": "post → author summary → profile A expand / B scroll, back to post, favorite saved privately",
-      "status": "FAIL",
-      "details": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    [\n      'user-demo-yumi',\n+     'user-sol'\n+   ],\n+   [\n+     'user-demo-yumi',\n+     'user-hoon'\n+   ],\n+   [\n+     'user-demo-yumi',\n      'user-seojin'\n    ]\n  ]\n"
+      "status": "PASS",
+      "details": "A summary→expand, B continuous; back and Escape return to post with focus; favorite kept across A/B and reload, no notification to target"
     },
     {
       "id": "P4",

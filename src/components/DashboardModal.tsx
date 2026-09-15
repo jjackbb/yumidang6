@@ -106,12 +106,12 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             <button onClick={onOpenPartnerProfile} disabled={!partnerProfile} aria-label={`${partnerProfile?.displayName || appointment.partnerName}님의 상세 프로필 보기`} className="w-full text-left flex items-center gap-3.5">
               <img
                 src={partnerProfile?.avatar || appointment.partnerAvatar}
-                alt={appointment.partnerName}
+                  alt={partnerProfile?.displayName || appointment.partnerName}
                 className="w-13 h-13 rounded-full object-cover shadow-2xs"
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-[16px] text-gray-900">{appointment.partnerName}</span>
+                  <span className="font-bold text-[16px] text-gray-900">{partnerProfile?.displayName || appointment.partnerName}</span>
                   <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-0.5 rounded-lg text-amber-600 text-xs font-bold">
                     <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                     <span>{partnerProfile?.sugarContent == null ? '당도 정보 없음' : `당도 ${partnerProfile.sugarContent} 🍯`}</span>

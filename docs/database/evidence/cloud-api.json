@@ -1,0 +1,97 @@
+{
+  "checked_at": "2026-09-15T07:19:37.968937+00:00",
+  "scope": "OBSERVED_REAL Supabase Auth, Edge Functions, PostgreSQL and RLS. Synthetic shared test accounts only.",
+  "checks": [
+    {
+      "name": "unknown phone rejected",
+      "pass": true
+    },
+    {
+      "name": "incorrect code rejected",
+      "pass": true
+    },
+    {
+      "name": "missing session rejected",
+      "pass": true
+    },
+    {
+      "name": "account 1 real Auth session",
+      "pass": true
+    },
+    {
+      "name": "account 2 real Auth session",
+      "pass": true
+    },
+    {
+      "name": "account 3 real Auth session",
+      "pass": true
+    },
+    {
+      "name": "post persisted and publicly readable",
+      "pass": true
+    },
+    {
+      "name": "client cannot impersonate actor via RPC",
+      "pass": true
+    },
+    {
+      "name": "direct REST writes denied",
+      "pass": true
+    },
+    {
+      "name": "nonowner edit denied",
+      "pass": true
+    },
+    {
+      "name": "exact location hidden before acceptance",
+      "pass": true
+    },
+    {
+      "name": "outsider accept denied",
+      "pass": true
+    },
+    {
+      "name": "outsider message denied",
+      "pass": true
+    },
+    {
+      "name": "outsider room read hidden",
+      "pass": true
+    },
+    {
+      "name": "accept blocked until reconfirmed",
+      "pass": true
+    },
+    {
+      "name": "appointment and same room created",
+      "pass": true
+    },
+    {
+      "name": "participant sees exact location after acceptance",
+      "pass": true
+    },
+    {
+      "name": "outsider exact location remains hidden",
+      "pass": true
+    },
+    {
+      "name": "other account reads saved message",
+      "pass": true
+    },
+    {
+      "name": "early completion rejected by server time",
+      "pass": true
+    },
+    {
+      "name": "favorite owner is private",
+      "pass": true
+    },
+    {
+      "name": "cancelled room is read-only",
+      "pass": true
+    }
+  ],
+  "fixture_posts": [
+    "3b206d35-ec68-4e9a-b9fe-7b3f36159918"
+  ]
+}

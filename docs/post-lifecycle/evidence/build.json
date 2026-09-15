@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:4180",
+  "url": "http://127.0.0.1:4192/?demo=1",
   "mode": "Frontend simulation; Supabase intercepted; no real messages or penalties",
   "cases": [
     {
@@ -24,7 +24,8 @@
     },
     {
       "name": "cancellation requires a reason preserves history and disables future appointment actions",
-      "status": "PASS"
+      "status": "FAIL",
+      "error": "locator.isDisabled: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: '약속 상세', exact: true }).getByRole('button', { name: '동행 완료 처리', exact: true })\u001b[22m\n"
     },
     {
       "name": "overlap warning allows returning then continuing without cancelling an old appointment",
@@ -32,6 +33,10 @@
     },
     {
       "name": "create validates a required deadline and preserves the form when overlap is declined",
+      "status": "PASS"
+    },
+    {
+      "name": "privacy after a schedule change reveals the detailed place only to participants",
       "status": "PASS"
     }
   ],
