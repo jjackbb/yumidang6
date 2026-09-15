@@ -2,13 +2,17 @@ import { isOpenRequest, postStatusLabel } from '../utils/postLifecycle';
 import { CompanionRequests, RequestTab } from './CompanionRequests';
 import React, { useState } from 'react';
 import { Heart, ShieldCheck, ChevronRight, Star, Award, LogOut, Sparkles, MessageSquare, Lock, Camera, Eye, PencilLine, Inbox } from 'lucide-react';
-import { Appointment, ChatMember, CompletionConfirmation, CurrentUser, FavoriteFriend, Invitation, MeetupPost, ReviewItem, EscrowPayment, JoinRequest, NotificationSettings } from '../types';
+import { Appointment, AppointmentReview, BlockRelation, ChatMember, CompletionConfirmation, CurrentUser, FavoriteFriend, Invitation, MeetupPost, ReviewItem, EscrowPayment, JoinRequest, NotificationSettings } from '../types';
 import { ACTIVITY_TABS, myActivity, postEndedReason, type ActivityTab } from '../utils/myActivity';
 import { DEMO_USER_ID } from '../data/demoIdentity';
 import { avatarSrc, profileStepLabel, type ProfileStep } from '../utils/profile';
 import { FavoriteFriendsPanel } from './FavoriteFriendsPanel';
 import { InvitationCenter } from './InvitationCenter';
 import { NotificationSettingsCard } from './NotificationSettingsCard';
+import { completionReviewState, releasedReviewsFor } from '../utils/reviews';
+import { SafetySettingsPanel } from './SafetySettingsPanel';
+import { FutureFeatureLab } from './FutureFeatureLab';
+import type { ExploreFilters } from '../utils/explore';
 
 interface MyPageViewProps {
   appointments: Appointment[];
@@ -38,6 +42,8 @@ interface MyPageViewProps {
   invitations: Invitation[];
   favorites: FavoriteFriend[];
   completions: CompletionConfirmation[];
+  appointmentReviews: AppointmentReview[];
+  blocks: BlockRelation[];
   notificationSettings: NotificationSettings;
   users: CurrentUser[];
   now: Date;
@@ -52,12 +58,14 @@ interface MyPageViewProps {
   onInviteFavorite: (targetId: string, postId: string) => void;
   onOpenFavoriteProfile: (targetId: string) => void;
   onChangeStrangerInvitationNotice: (enabled: boolean) => void;
+  onUnblock: (targetId: string) => void;
+  onApplyAiFilters: (filters: ExploreFilters) => void;
   acceptBlockedReason?: (request: JoinRequest) => string | null;
 }
 
 export const MyPageView: React.FC<MyPageViewProps> = ({
-  invitations, favorites, completions, notificationSettings, users, now, userNameOf, partnerOf, onOpenAppointmentChat, onOpenPartnerProfile, onOpenInvitationPost,
-  onToggleFavoriteNotice, onRemoveFavorite, onInviteFavorite, onOpenFavoriteProfile, onChangeStrangerInvitationNotice, acceptBlockedReason,
+  invitations, favorites, completions, appointmentReviews, blocks, notificationSettings, users, now, userNameOf, partnerOf, onOpenAppointmentChat, onOpenPartnerProfile, onOpenInvitationPost,
+  onToggleFavoriteNotice, onRemoveFavorite, onInviteFavorite, onOpenFavoriteProfile, onChangeStrangerInvitationNotice, onUnblock, onApplyAiFilters, acceptBlockedReason,
   appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost, onOpenRequestChat, onOpenRequestProfile, onCancelRequest, onReconfirmRequest, posts, onOpenOwnPost,
   onOpenDashboard,
   currentUser,
@@ -94,8 +102,18 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
   }
 
 
-  // Sample reviews in the seed belong to the example member only; everyone else shows real counts.
-  const myReviews = currentUser.id === DEMO_USER_ID ? reviews : [];
+  const releasedAppointmentReviews: ReviewItem[] = releasedReviewsFor(currentUser.id, appointmentReviews).map(review => {
+    const reviewer = users.find(user => user.id === review.reviewerId);
+    const target = appointments.find(item => item.id === review.appointmentId);
+    return {
+      id: review.id, appointmentId: review.appointmentId, appointmentTitle: target?.title || '완료한 동행',
+      reviewerName: reviewer?.maskedName || '동행 이웃', reviewerAvatar: reviewer?.avatar || '', targetName: '나',
+      rating: review.rating, badges: [...review.positiveItems, ...review.negativeItems], comment: review.comment,
+      isBlind: false, createdAt: new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }).format(new Date(review.submittedAt)),
+    };
+  });
+  // Legacy cards are explicitly sample data. New lifecycle reviews appear only after both sides submit.
+  const myReviews = [...(currentUser.id === DEMO_USER_ID ? reviews : []), ...releasedAppointmentReviews];
   const completedCount = appointments.filter(item => item.status === '동행 완료').length;
   const averageRating = myReviews.length ? (myReviews.reduce((sum, item) => sum + item.rating, 0) / myReviews.length).toFixed(1) : '—';
 
@@ -112,6 +130,8 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
       <FavoriteFriendsPanel userId={currentUser.id} users={users} favorites={favorites} posts={posts} invitations={invitations} now={now}
         onToggleNewPostNotice={onToggleFavoriteNotice} onRemove={onRemoveFavorite} onInvite={onInviteFavorite} onOpenProfile={onOpenFavoriteProfile} />
       <NotificationSettingsCard strangerInvitations={notificationSettings.strangerInvitations} onChange={onChangeStrangerInvitationNotice} />
+      <SafetySettingsPanel userId={currentUser.id} blocks={blocks} users={users} onUnblock={onUnblock} />
+      <FutureFeatureLab appointments={appointments} posts={posts} now={now} onApplyAi={onApplyAiFilters} />
       {(() => {
         const activity = myActivity(currentUser.id, posts, appointments);
         const appointmentList = activity[activityTab];
@@ -139,11 +159,13 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
               {appointmentList.map(item => {
                 const partner = partnerOf(item);
                 const post = posts.find(value => value.id === item.postId);
+                const completionState = completionReviewState(item, currentUser.id, completions, appointmentReviews, now);
                 return <article key={item.id} data-appointment-card={item.id} data-appointment-status={item.status} className="rounded-xl border border-gray-100 p-3 text-xs space-y-2">
                   <div className="flex items-center justify-between gap-2"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${item.status === '동행 취소' ? 'bg-gray-100 text-gray-500' : 'bg-purple-50 text-[#6c2cf5]'}`}>{item.status}</span><span className="text-[11px] text-gray-400 truncate">{item.dateTime}</span></div>
                   <button type="button" onClick={() => onOpenDashboard(item)} className="w-full text-left font-bold text-sm flex items-center justify-between gap-2">{item.title}<ChevronRight size={14} className="shrink-0 text-gray-400" /></button>
                   {post && <button type="button" onClick={() => onOpenOwnPost(post.id)} className="block text-left text-[11px] text-gray-600 underline decoration-gray-300">연결 공고: {post.title}</button>}
                   {partner && <button type="button" onClick={() => onOpenPartnerProfile(partner)} aria-label={`${partner.displayName}님의 상세 프로필 보기`} className="text-[11px] text-gray-600">상대: <b>{partner.displayName}</b> · 프로필 보기</button>}
+                  {item.status !== '동행 취소' && <p className="rounded-lg bg-[#f7f4ff] px-2.5 py-2 text-[11px] text-gray-600">{completionState.ownCompleted ? '내 완료 확인' : '내 완료 대기'} · {completionState.otherCompleted ? '상대 완료 확인' : '상대 완료 대기'}{completionState.hasOwnReview ? completionState.reviewsReleased ? ' · 후기 공개' : ' · 내 평가 제출/공개 대기' : ''}</p>}
                   {item.cancellation && <p className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2">{item.cancellation.actorId === currentUser.id ? '내가' : '상대가'} 취소했어요 · 사유: {item.cancellation.reason}</p>}
                   <div className="grid grid-cols-2 gap-1.5">
                     <button type="button" onClick={() => onOpenDashboard(item)} className="rounded-lg bg-gray-100 py-2 font-bold">약속 상세</button>

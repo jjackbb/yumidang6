@@ -316,7 +316,7 @@ const result = { url, mode: 'step-2 signup/profile', cases: [], errors: [], exte
     await post.waitFor();
     await page.reload({ waitUntil: 'networkidle' });
     const data = (await stored(page)).data;
-    assert.deepEqual(data.favorites.map(item => [item.ownerId, item.targetId]), [['user-demo-yumi', 'user-seojin']]);
+    assert.deepEqual(data.favorites.filter(item => item.ownerId === 'user-demo-yumi').map(item => item.targetId).sort(), ['user-hoon', 'user-seojin', 'user-sol']);
     assert.equal(data.notifications.some(item => item.recipientId === 'user-seojin'), false, 'saved person was notified');
     return 'A summary→expand, B continuous; back and Escape return to post with focus; favorite kept across A/B and reload, no notification to target';
   });

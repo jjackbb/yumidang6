@@ -20,11 +20,12 @@ interface DemoControlPanelProps {
   onSetTimeOffset: (offsetMs: number) => void;
   onSetTime: (iso: string) => void;
   onChangeVariant: (key: keyof DemoSettings['variants'], value: ABVariant) => void;
+  onStartSegment: (segment: 'full' | 'matching' | 'completion') => void;
   onReset: () => void;
 }
 
 /** Review-only controls, visually separate from service buttons. Visible only with `?demo=1`. */
-export function DemoControlPanel({ users, activeUserId, now, settings, onSwitchUser, onSetTimeOffset, onSetTime, onChangeVariant, onReset }: DemoControlPanelProps) {
+export function DemoControlPanel({ users, activeUserId, now, settings, onSwitchUser, onSetTimeOffset, onSetTime, onChangeVariant, onStartSegment, onReset }: DemoControlPanelProps) {
   const [open, setOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [timeInput, setTimeInput] = useState('');
@@ -55,6 +56,15 @@ export function DemoControlPanel({ users, activeUserId, now, settings, onSwitchU
     </div>
     {open && <div className="px-4 pb-3 space-y-3">
       <p className="text-[11px] leading-relaxed text-amber-900">예시 데이터로 보는 프론트 체험이에요. 외부 인증·분석·DB 전송은 막혀 있고, 역할 전환은 같은 브라우저 저장소에서 사용자만 바꿔요(실제 기기 간 동기화 아님).</p>
+      <fieldset>
+        <legend className="font-bold mb-1.5">시연 시작점</legend>
+        <div className="grid grid-cols-3 gap-1.5">
+          <button type="button" data-demo-start="full" onClick={() => onStartSegment('full')} className="rounded-lg bg-amber-900 px-2 py-2 text-[11px] font-bold text-white">전체 · 가입부터</button>
+          <button type="button" data-demo-start="matching" onClick={() => onStartSegment('matching')} className="rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-bold">매칭부터</button>
+          <button type="button" data-demo-start="completion" onClick={() => onStartSegment('completion')} className="rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-bold">완료·평가부터</button>
+        </div>
+        <p className="mt-1.5 text-[10px] text-amber-800">전체 체험은 가입 → 프로필 → 탐색·신청 → 작성자 수락 → 종료 후 개인 완료·평가 순서로 이어져요.</p>
+      </fieldset>
       <fieldset>
         <legend className="font-bold mb-1.5">역할 전환</legend>
         <div className="flex flex-wrap gap-1.5">

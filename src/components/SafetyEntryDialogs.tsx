@@ -41,9 +41,10 @@ export function ReportUserDialog({ targetName, onClose, onSubmit }: { targetName
 }
 
 /** Block entry with impact shown first. Completed records are kept; unblocking does not restore cancelled meetups. */
-export function BlockUserDialog({ targetName, affectedTitles, onClose, onConfirm }: { targetName: string; affectedTitles: string[]; onClose: () => void; onConfirm: () => void }) {
+export function BlockUserDialog({ targetName, affectedTitles, holdReason, onClose, onConfirm }: { targetName: string; affectedTitles: string[]; holdReason?: string; onClose: () => void; onConfirm: () => void }) {
   return <Shell label={`${targetName}님 차단`} onClose={onClose}>
-    <h2 className="text-base font-bold">{targetName}님을 차단할까요?</h2>
+    <h2 className="text-base font-bold">{holdReason ? '차단 영향 검토가 필요해요' : `${targetName}님을 차단할까요?`}</h2>
+    {holdReason && <p role="status" className="rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">{holdReason}</p>}
     <ul className="list-disc pl-4 text-xs text-gray-600 space-y-1">
       <li>서로의 공고·신청·초대가 보이지 않도록 막아요.</li>
       {affectedTitles.length
@@ -52,6 +53,6 @@ export function BlockUserDialog({ targetName, affectedTitles, onClose, onConfirm
       <li>이미 완료된 동행 기록은 삭제되지 않아요. 차단을 해제해도 취소된 동행은 복구되지 않아요.</li>
     </ul>
     <p className="text-[11px] text-gray-500">동행만 취소하려면 차단 대신 약속 상세의 ‘동행 취소’를 이용해 주세요.</p>
-    <div className="grid grid-cols-2 gap-2"><button type="button" onClick={onClose} className="rounded-xl bg-gray-100 py-2.5 text-xs font-bold">취소</button><button type="button" onClick={onConfirm} className="rounded-xl bg-rose-600 text-white py-2.5 text-xs font-bold">차단하기</button></div>
+    <div className="grid grid-cols-2 gap-2"><button type="button" onClick={onClose} className="rounded-xl bg-gray-100 py-2.5 text-xs font-bold">{holdReason ? '이전으로' : '취소'}</button><button type="button" disabled={Boolean(holdReason)} onClick={onConfirm} className="rounded-xl bg-rose-600 text-white py-2.5 text-xs font-bold disabled:bg-gray-200 disabled:text-gray-500">{holdReason ? '정책 확정 후 가능' : '차단하기'}</button></div>
   </Shell>;
 }

@@ -41,6 +41,12 @@ Auth 사용자를 생성할 때 프로필을 자동으로 만드는 트리거도
 
 ## Vercel 연결 상태
 
+**화면 오류 후속 수정: 2026-09-15 15:57 KST.** 아래에서 발견한 `usersAvatar is not defined` 오류와 MyPage 필수 데이터 누락을 수정해 운영 배포에 반영했다. 홈·둘러보기·로그인 이동·시연 계정 Me·새로고침에서 실행 오류 0건을 확인했다. [수정 및 배포 기록](../fixes/users-avatar/HANDOFF.md). DB 업무 데이터 연동은 여전히 별도 작업이다.
+
+**최신 재확인: 2026-09-15 15:48 KST.** 배포 파일이 `/assets/index-BiVhgaEY.js`로 변경됐고 새 프로젝트 `fiaxchvyywpqbwbcuzfz.supabase.co` 주소가 포함돼 있다. 아래 기존 주소 관찰은 이전 배포 기록이다. 새 DB 공개 REST 조회는 HTTP 200, 카테고리 12개 반환. 회원·프로필·모집글·메시지는 각각 0개다.
+
+브라우저로 `/`, `/explore`, `/me`에 접근했으나 세 경로 모두 `usersAvatar is not defined` 실행 오류가 발생했고 Supabase 요청은 관찰되지 않았다. 따라서 주소 설정은 반영됐지만 앱에서 실제 DB 저장이 동작한다고 판정할 수 없다. 로컬 업무 데이터 코드는 여전히 localStorage 프로토타입이며 게시글·채팅용 DB 호출은 없다. [이번 읽기 전용 확인 결과](evidence/deployment-connection-2026-09-15.json).
+
 2026-09-15에 https://yumidang6.vercel.app 의 공개 배포 파일 `/assets/index-h6shi7RG.js`를 조회했다. Supabase 주소는 기존 `hrhudubhmazqevnrfsmo.supabase.co`이며 새 프로젝트 주소는 없었다. 이 관찰은 배포된 파일 기준이며 Vercel 관리자 환경변수 화면은 확인하지 않았다.
 
 로컬 `.env.local`은 새 프로젝트를 가리키지만 Git에 포함되지 않으며 Vercel로 자동 반영되지 않는다. 이번 작업에서 Vercel 환경변수 변경이나 재배포를 수행하지 않았다. 앱의 업무 데이터도 아직 localStorage/예시 데이터를 사용한다.

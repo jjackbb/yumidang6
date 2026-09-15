@@ -60,7 +60,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                 {appointment.status}
               </span>
               <p className="text-[18px] font-extrabold text-gray-900 mt-1.5">
-                {appointment.status === '동행 취소' ? '취소된 동행이에요' : appointment.status === '동행 완료' ? '동행을 완료했어요' : completionActions.availability.canComplete ? '동행 완료를 확인해 주세요' : '함께할 약속을 확인해 주세요'}
+                {appointment.status === '동행 취소' ? '취소된 동행이에요' : completionActions.state.ownCompleted ? '내 동행 완료를 확인했어요' : completionActions.state.canComplete ? '동행 완료를 확인해 주세요' : '함께할 약속을 확인해 주세요'}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-white shadow-xs flex items-center justify-center text-[#6c2cf5]">
@@ -203,4 +203,3 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
     </div>
   );
 };
-

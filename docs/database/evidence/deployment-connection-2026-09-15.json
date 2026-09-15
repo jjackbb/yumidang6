@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-09-15T06:48:19.727563+00:00",
+  "site": "https://yumidang6.vercel.app",
+  "asset": "/assets/index-BiVhgaEY.js",
+  "deployed_supabase_url": "https://fiaxchvyywpqbwbcuzfz.supabase.co",
+  "new_database_rest": { "status": 200, "category_count": 12 },
+  "database_counts": { "auth_users": 0, "profiles": 0, "meetup_posts": 0, "chat_messages": 0, "categories": 12 },
+  "browser_paths_checked": ["/", "/explore", "/me"],
+  "browser_error_on_each_path": "usersAvatar is not defined",
+  "observed_supabase_requests": 0,
+  "business_storage_code": "localStorage prototype; no meetup_posts/chat_messages/join_requests calls found",
+  "verdict": "New project URL configured and DB REST read succeeds. App persistence is not integrated; runtime verification is blocked by a deployed JavaScript error.",
+  "scope": "Read-only inspection. No signup, record insertion, deployment or environment change performed."
+}

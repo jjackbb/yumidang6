@@ -23,7 +23,8 @@ import { requestEligibility } from './utils/postForm';
 import { emptyExploreFilters, type ExploreFilters } from './utils/explore';
 import { DEMO_USER_ID } from './data/demoIdentity';
 import { appointmentStart, koreaDateParts } from './utils/calendar';
-import { completionAvailability, formatMeetupRange, isValidMeetupRange } from './utils/meetupLifecycle';
+import { formatMeetupRange, isValidMeetupRange } from './utils/meetupLifecycle';
+import { completionReviewState, createAppointmentReview, createCompletionConfirmation, releasedReviewsFor, type ReviewDraft } from './utils/reviews';
 import { CategoryGrid } from './components/CategoryGrid';
 import { BottomNav, NavTab } from './components/BottomNav';
 import { DashboardModal } from './components/DashboardModal';
@@ -48,7 +49,8 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { ProfileEditor, type ProfilePatch } from './components/ProfileEditor';
 import { BlockUserDialog, ReportUserDialog } from './components/SafetyEntryDialogs';
 import { avatarSrc, missingProfileSteps, profileStepLabel, type ProfileStep } from './utils/profile';
-import { isSavedBy } from './utils/relations';
+import { isSavedBy, notificationSettingsFor } from './utils/relations';
+import { canInviteToPost, invitationStatusForPost, shouldNotifyInvitation } from './utils/invitations';
 import { publicProfileForMember, publicProfileForPost } from './data/publicProfiles';
 import { CancellationDialog, LifecycleConfirmDialog, ScheduleConflictDialog } from './components/LifecycleDialogs';
 import { cancelAppointment as cancelConfirmedAppointment, closePost, conditionsOf, confirmChangedConditions, expirePosts, isConfirmedAppointment, isOpenRequest, isRecruiting, overlappingAppointments, recruitmentDeadline, updateRecruitingPost, type LifecycleState } from './utils/postLifecycle';
@@ -59,6 +61,7 @@ import { createSeedData } from './data/prototypeSeed';
 import { demoNow, isDemoMode, usesPrototypeAuth } from './utils/demoMode';
 import { browserStorage, clearPrototype, loadPrototype, savePrototype, storageIssueMessage, STORAGE_KEYS, type PrototypeData, type StorageIssue } from './utils/prototypeStore';
 import { canViewSecretLocation, visibleNotifications } from './utils/access';
+import { blockImpact } from './utils/blocking';
 
 import { mockCategories } from './data/mockData';
 import { Appointment, AppointmentReview, BlockRelation, CategoryItem, ChatMember, CompletionConfirmation, DemoSettings, EventBannerItem, FavoriteFriend, Invitation, MeetupPost, CurrentUser, JoinRequest, ReviewItem, EscrowPayment, NotificationItem, NotificationSettings, ChatRoom, ScheduleProposal } from './types';
@@ -152,9 +155,6 @@ export default function App() {
   // Phase 5: Mutual Blind Review & Sugar Settling states
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
-  const [submittedReviews, setSubmittedReviews] = useState<Record<string, { rating: number; badges: string[]; comment: string }>>({});
-  const submissionLocks = useRef(new Set<string>());
-  const settlementLocks = useRef(new Set<string>());
 
   // UI 뒤로가기/닫기 이벤트 및 체류시간 실시간 추적 (Supabase 정규화 테이블 ui_back_events)
   const modalOpenTimes = useRef<Record<string, number>>({});
@@ -262,7 +262,6 @@ export default function App() {
   const [activeAppointmentId, setActiveAppointmentId] = useState(boot.data.appointments[0]?.id || '');
   const appointment = appointments.find(item => item.id === activeAppointmentId) || appointments[0];
   const reviewAppointment = appointments.find(item => item.id === reviewAppointmentId) || appointment;
-  const reviewKey = (id: string) => `${currentUser?.id}:${id}`;
   useEffect(() => {
     const delay = Math.min(...appointments.map(item => Date.parse(item.endsAt || '') - clock().getTime()).filter(value => value > 0));
     if (!Number.isFinite(delay)) return;
@@ -339,7 +338,7 @@ export default function App() {
     setActiveRoomId(room.id);
     if (room.appointmentId) setActiveAppointmentId(room.appointmentId);
     setActiveTab('chat');
-    setNotifications(prev => prev.map(item => item.roomId === room.id ? { ...item, read: true } : item));
+    setNotifications(prev => prev.map(item => item.roomId === room.id && item.recipientId === currentUser?.id ? { ...item, read: true } : item));
   };
   const openRequestRoom = (id: string) => {
     const room = chatRooms.find(room => room.requestId === id);
@@ -358,7 +357,8 @@ export default function App() {
     const senderId = sample ? room.members.find(member => member.id !== currentUser!.id)!.id : currentUser!.id;
     const message = { id: crypto.randomUUID(), senderId, text: text.trim(), createdAt: new Date().toISOString(), isSample: sample };
     setChatRooms(prev => prev.map(item => item.id === id ? { ...item, draft: sample ? item.draft : '', messages: [...item.messages, message] } : item));
-    if (sample) setNotifications(prev => [{ id: `notif-${message.id}`, title: '새 동행 메시지 · 시연', description: text, roomId: id, type: 'chat', time: '방금', read: false }, ...prev]);
+    const recipientId = room.members.find(member => member.id !== senderId)?.id;
+    if (recipientId) setNotifications(prev => [{ id: `notif-${message.id}`, title: sample ? '새 동행 메시지 · 시연' : '새 동행 메시지', description: text, roomId: id, recipientId, createdAt: clock().toISOString(), targetType: 'room', targetId: id, type: 'chat', time: '방금', read: false }, ...prev]);
   };
   const proposeRoomSchedule = (id: string, proposal: ScheduleProposal) => {
     const room = chatRooms.find(room => room.id === id);
@@ -410,8 +410,7 @@ export default function App() {
     setActiveTab(NAV_TABS.includes(data.ui.activeTab as NavTab) ? data.ui.activeTab as NavTab : 'home');
     if (prototypeAuth) setCurrentUser(data.users.find(user => user.id === (keepUserId || data.activeUserId)) || null);
     setActiveRoomId(null); setIsDashboardOpen(false); setIsReviewModalOpen(false); setSelectedChatProfile(null);
-    setSelectedPostForDetail(null); setIsNotificationsOpen(false); submissionLocks.current.clear(); settlementLocks.current.clear(); matchingLocks.current.clear(); proposalLocks.current.clear();
-    setSubmittedReviews({});
+    setSelectedPostForDetail(null); setIsNotificationsOpen(false); matchingLocks.current.clear(); proposalLocks.current.clear();
   };
   const retryStorage = () => {
     if (autosave) { persist(); return; }
@@ -459,6 +458,18 @@ export default function App() {
   useEffect(() => {
     setSelectedPostForDetail(previous => previous ? meetupPosts.find(post => post.id === previous.id) || null : null);
   }, [meetupPosts]);
+  useEffect(() => {
+    setInvitations(previous => {
+      let changed = false;
+      const next = previous.map(item => {
+        const status = invitationStatusForPost(item, meetupPosts.find(post => post.id === item.postId));
+        if (status === item.status) return item;
+        changed = true;
+        return { ...item, status };
+      });
+      return changed ? next : previous;
+    });
+  }, [meetupPosts]);
   const activeMeetupPosts = meetupPosts.filter(post => post.status !== 'deleted');
   const warnConflict = (action: ConflictAction, participants: string[], startsAt?: string, endsAt?: string, excludeId?: string) => {
     const conflicts = overlappingAppointments(appointments, participants, startsAt, endsAt, excludeId);
@@ -471,7 +482,7 @@ export default function App() {
   const unreadNotifCount = myNotifications.filter((n) => !n.read).length;
 
   const handleMarkAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => n.recipientId === currentUser?.id ? { ...n, read: true } : n));
   };
 
   const profileMissing = currentUser ? missingProfileSteps(currentUser) : [];
@@ -520,6 +531,15 @@ export default function App() {
         read: false,
         type: 'event',
       },
+      ...prev.filter(item => !(item.type === 'new_post' && item.targetId === newPost.id)),
+    ]);
+    const interested = favorites.filter(item => item.targetId === currentUser.id && item.notifyNewPosts).map(item => item.ownerId);
+    if (interested.length) setNotifications(prev => [
+      ...interested.map(recipientId => ({
+        id: `notif-new-post-${newPost.id}-${recipientId}`, recipientId, createdAt: clock().toISOString(),
+        title: `${currentUser.maskedName}님이 새 공고를 올렸어요`, description: newPost.title, time: '방금', read: false,
+        type: 'new_post' as const, targetType: 'post' as const, targetId: newPost.id,
+      })),
       ...prev,
     ]);
     setIsCreateModalOpen(false); setCreateContext(null);
@@ -646,12 +666,19 @@ export default function App() {
         id: 'notif-' + Date.now(),
         title: '1:1 동행 참여 신청 완료', roomId: room.id,
         description: `"${post.title}" 공고에 신청했어요. 지금부터 대화할 수 있고, 작성자가 수락하면 확정됩니다.`,
-        time: '방금',
+        time: '방금', createdAt: clock().toISOString(), recipientId: currentUser.id, targetType: 'room', targetId: room.id,
         read: false,
         type: 'matching',
       },
+      {
+        id: `notif-request-${newReq.id}`, title: `${currentUser.maskedName}님이 동행을 신청했어요`,
+        description: `"${post.title}" 신청 내용을 확인하세요. 대화 없이 바로 수락할 수도 있어요.`,
+        time: '방금', createdAt: clock().toISOString(), recipientId: post.authorId,
+        read: false, type: 'matching', action: 'match_requests', targetType: 'room', targetId: room.id, roomId: room.id,
+      },
       ...prev,
     ]);
+    setInvitations(prev => prev.map(item => item.postId === post.id && item.recipientId === currentUser.id && item.senderId === post.authorId ? { ...item, status: 'applied' } : item));
 
     setIsJoinRequestModalOpen(false); setSelectedPostForJoin(null);
     return true;
@@ -685,7 +712,7 @@ export default function App() {
       return { ...room, appointmentId: request.id === requestId ? appointmentId : room.appointmentId,
         messages: [...room.messages, { id: crypto.randomUUID(), senderId: 'system', createdAt: new Date().toISOString(), text: request.id === requestId ? '작성자가 수락해 동행이 확정됐어요. 같은 방에서 약속을 조율하세요.' : '작성자가 다른 동행자와 확정해 이 신청이 종료됐어요.' }] };
     }));
-    setNotifications(prev => [{ id: `notif-${crypto.randomUUID()}`, title: '동행 매칭 확정', description: targetPost.title, roomId, type: 'matching', time: '방금', read: false }, ...prev]);
+    setNotifications(prev => [{ id: `notif-${crypto.randomUUID()}`, title: '동행 매칭 확정', description: targetPost.title, roomId, recipientId: targetReq.requesterId, createdAt: clock().toISOString(), targetType: 'appointment', targetId: appointmentId, type: 'matching', time: '방금', read: false }, ...prev]);
     trackFunnelEvent({ step: 'MATCH_ACCEPT', targetPostId: targetPost.id, pageKey: 'MATCH_REQUESTS', metadata: { requesterId: targetReq.requesterId, simulated: simulateHost } });
     setActiveRoomId(roomId); setActiveTab('chat');
   };
@@ -695,7 +722,8 @@ export default function App() {
     const text = status === 'rejected' ? '작성자가 신청을 거절했어요.' : `신청자가 동행 신청을 취소했어요. 사유: ${reason}`;
     setJoinRequests(prev => prev.map(item => item.id === requestId && isOpenRequest(item) ? { ...item, status, cancellationReason: reason } : item));
     setChatRooms(prev => prev.map(room => room.requestId === requestId ? { ...room, messages: [...room.messages, { id: crypto.randomUUID(), senderId: 'system', text, createdAt: new Date().toISOString() }] } : room));
-    setNotifications(prev => [{ id: crypto.randomUUID(), title: status === 'rejected' ? '신청 거절' : '신청 취소', description: text, roomId: requestRoomId(requestId), type: 'matching', time: '방금', read: false }, ...prev]);
+    const recipientId = status === 'rejected' ? request.requesterId : request.hostId;
+    setNotifications(prev => [{ id: crypto.randomUUID(), title: status === 'rejected' ? '신청 거절' : '신청 취소', description: text, roomId: requestRoomId(requestId), recipientId, createdAt: clock().toISOString(), targetType: 'room', targetId: requestRoomId(requestId), type: 'matching', time: '방금', read: false }, ...prev]);
     return true;
   };
   const handleRejectRequest = (id: string) => endRequest(id, 'rejected');
@@ -727,8 +755,10 @@ export default function App() {
       {
         id: 'notif-' + Date.now(),
         title: `🚨 [신고 접수] ${reasonLabel}`,
-        description: `${appointment.partnerName} 회원에 대한 신고가 안전센터에 접수되었습니다. 상대방의 당도 패널티(-20 Brix) 검토 및 운영진 조사가 즉시 시작됩니다.`,
+        description: `${appointment.partnerName} 회원에 대한 예시 접수 상태를 만들었어요. 실제 운영팀·기관에 전달되지 않았고 자동 제재나 당도 감점도 없어요.`,
         time: '방금',
+        createdAt: clock().toISOString(),
+        recipientId: currentUser?.id,
         read: false,
         type: 'matching',
       },
@@ -753,68 +783,46 @@ export default function App() {
     alert(`${appointment.partnerName}님에게 '약속 장소에 10분 내 도착 예정입니다!' 안심 알림을 전송했습니다.`);
   };
 
-  // Phase 5: Mutual Blind Review Submit & Sugar Settling
+  // Phase 5: personal completion + mutual blind reviews
   const handleOpenReview = (target: Appointment) => {
-    if (!completionAvailability(target, currentUser?.id, clock()).canReview) return;
+    const state = completionReviewState(target, currentUser?.id, completions, appointmentReviews, clock());
+    if (!state.canReview && !state.hasOwnReview) return;
     setReviewAppointmentId(target.id);
     setIsReviewModalOpen(true);
   };
 
   const handleCompleteAppointment = (target: Appointment) => {
-    if (!completionAvailability(target, currentUser?.id, clock()).canComplete) return;
-    setAppointments(prev => prev.map(item => item.id === target.id ? { ...item, status: '동행 완료', dDay: '완료됨' } : item));
+    if (!currentUser) return;
+    const result = createCompletionConfirmation(target, currentUser.id, completions, appointmentReviews, clock());
+    if ('error' in result) { setLifecycleNotice(result.error); return; }
+    const nextCompletions = [...completions, result.value];
+    setCompletions(nextCompletions);
+    const partnerId = target.participantIds?.find(id => id !== currentUser.id);
+    const bothComplete = Boolean(partnerId && nextCompletions.some(item => item.appointmentId === target.id && item.userId === partnerId));
+    if (bothComplete) setAppointments(prev => prev.map(item => item.id === target.id ? { ...item, status: '동행 완료', dDay: '완료됨' } : item));
+    if (partnerId) setNotifications(prev => [{
+      id: `notif-completion-${target.id}-${currentUser.id}`, recipientId: partnerId, createdAt: result.value.confirmedAt,
+      title: `${currentUser.maskedName}님이 동행 완료를 확인했어요`, description: '평가 내용은 포함되지 않아요. 내 완료 확인 후 평가를 남길 수 있어요.',
+      time: '방금', read: false, type: 'completion', targetType: 'appointment', targetId: target.id,
+    }, ...prev]);
+    setReviewAppointmentId(target.id);
+    setIsReviewModalOpen(true);
   };
 
-  const handleSubmitReview = (reviewPayload: { rating: number; badges: string[]; comment: string }) => {
-    const key = reviewKey(reviewAppointment.id);
-    if (!completionAvailability(reviewAppointment, currentUser?.id, clock()).canReview || submissionLocks.current.has(key)) return false;
-    submissionLocks.current.add(key);
-    setSubmittedReviews(prev => ({ ...prev, [key]: reviewPayload }));
-    setNotifications((prev) => [
-      {
-        id: 'notif-' + Date.now(),
-        title: '🔒 블라인드 평가 제출 완료',
-        description: `${reviewAppointment.partnerName}님과의 동행 평가를 제출했습니다.`,
-        time: '방금',
-        read: false,
-        type: 'matching',
-      },
+  const handleSubmitReview = (reviewPayload: ReviewDraft): { ok: true } | { ok: false; error: string } => {
+    if (!currentUser) return { ok: false, error: '로그인 후 평가해 주세요.' };
+    const result = createAppointmentReview(reviewAppointment, currentUser.id, reviewPayload, completions, appointmentReviews, demoSettings.variants.review, clock());
+    if ('error' in result) return result;
+    const partnerId = result.value.revieweeId;
+    const partnerAlreadySubmitted = appointmentReviews.some(item => item.appointmentId === reviewAppointment.id && item.reviewerId === partnerId);
+    setAppointmentReviews(prev => [...prev, result.value]);
+    const createdAt = result.value.submittedAt;
+    setNotifications(prev => [
+      { id: `notif-review-self-${reviewAppointment.id}-${currentUser.id}`, recipientId: currentUser.id, createdAt, title: '블라인드 평가 제출 완료', description: partnerAlreadySubmitted ? '양쪽 평가가 모두 제출되어 서로의 후기가 공개됐어요.' : '상대가 제출할 때까지 후기는 비공개이며 7일 뒤에도 자동 공개되지 않아요.', time: '방금', read: false, type: 'review', targetType: 'review', targetId: reviewAppointment.id },
+      ...(partnerAlreadySubmitted ? [{ id: `notif-review-release-${reviewAppointment.id}-${partnerId}`, recipientId: partnerId, createdAt, title: '상호 평가가 공개됐어요', description: '양쪽 평가가 모두 제출되어 서로의 후기를 확인할 수 있어요.', time: '방금', read: false, type: 'review' as const, targetType: 'review' as const, targetId: reviewAppointment.id }] : []),
       ...prev,
     ]);
-    return true;
-  };
-
-  const handleSettleSugar = (delta: number, partnerReview: ReviewItem) => {
-    const key = reviewKey(partnerReview.appointmentId);
-    const target = appointments.find(item => item.id === partnerReview.appointmentId);
-    if (!target || !completionAvailability(target, currentUser?.id, clock()).canReview || !submissionLocks.current.has(key) || settlementLocks.current.has(key)) return false;
-    settlementLocks.current.add(key);
-    // 1. 당도 정수형 가산
-    setCurrentUser((prev) => {
-      if (!prev) return null;
-      const nextSugar = Math.min(100, Math.round(prev.sugarContent + delta));
-      return {
-        ...prev,
-        sugarContent: nextSugar,
-      };
-    });
-
-    // 3. 후기 리스트에 추가
-    setReviews((prev) => [partnerReview, ...prev]);
-
-    // 4. 시스템 알림 발송
-    setNotifications((prev) => [
-      {
-        id: 'notif-' + Date.now(),
-        title: `🍯 당도 정산 완료 (+${delta} 🍯 상승!)`,
-        description: `양측 블라인드 평가가 동시 해제되었습니다! ${target.partnerName}님이 칭찬 뱃지를 선물했습니다.`,
-        time: '방금',
-        read: false,
-        type: 'matching',
-      },
-      ...prev,
-    ]);
-    return true;
+    return { ok: true };
   };
 
   const handleAuthSuccess = (authenticated: CurrentUser, kind: 'signup' | 'signin' = 'signin') => {
@@ -859,12 +867,52 @@ export default function App() {
       ? prev.filter(item => !(item.ownerId === currentUser.id && item.targetId === targetId))
       : [...prev, { ownerId: currentUser.id, targetId, savedAt: clock().toISOString(), notifyNewPosts: true }]);
   };
+  const toggleFavoriteNotice = (targetId: string) => {
+    if (!currentUser) return;
+    setFavorites(prev => prev.map(item => item.ownerId === currentUser.id && item.targetId === targetId ? { ...item, notifyNewPosts: !item.notifyNewPosts } : item));
+  };
+  const openProfileById = (targetId: string) => {
+    const user = userById(targetId);
+    const post = meetupPosts.find(item => item.authorId === targetId);
+    if (user) setSelectedChatProfile(selfMember(user));
+    else if (post) setSelectedChatProfile(postAuthor(post));
+  };
+  const inviteFavorite = (targetId: string, postId: string) => {
+    if (!currentUser || !isSavedBy(currentUser.id, targetId, favorites)) return;
+    const post = meetupPosts.find(item => item.id === postId);
+    const blocked = blocks.some(item => (item.blockerId === currentUser.id && item.blockedId === targetId) || (item.blockerId === targetId && item.blockedId === currentUser.id));
+    const allowed = canInviteToPost(post, currentUser.id, targetId, invitations, blocked, clock());
+    if (!allowed.ok) { setLifecycleNotice(allowed.reason); return; }
+    const invitation: Invitation = { id: `invite-${crypto.randomUUID()}`, postId, senderId: currentUser.id, recipientId: targetId, receivedAt: clock().toISOString(), status: 'received' };
+    setInvitations(prev => [invitation, ...prev]);
+    if (shouldNotifyInvitation(invitation, notificationSettings, favorites, appointments, completions)) setNotifications(prev => [{
+      id: `notif-${invitation.id}`, recipientId: targetId, createdAt: invitation.receivedAt, title: `${currentUser.maskedName}님이 동행에 초대했어요`,
+      description: post!.title, time: '방금', read: false, type: 'invitation', targetType: 'invitation', targetId: invitation.id,
+    }, ...prev]);
+    setLifecycleNotice('공개된 공고로 초대했어요. 상대가 직접 신청하고 작성자가 수락해야 확정됩니다.');
+  };
+  const openInvitation = (target: Invitation) => {
+    if (!currentUser || ![target.senderId, target.recipientId].includes(currentUser.id)) return;
+    const post = meetupPosts.find(item => item.id === target.postId);
+    setInvitations(prev => prev.map(item => item.id === target.id && item.recipientId === currentUser.id && item.status === 'received' ? { ...item, status: 'viewed', viewedAt: clock().toISOString() } : item));
+    setNotifications(prev => prev.map(item => item.targetType === 'invitation' && item.targetId === target.id && item.recipientId === currentUser.id ? { ...item, read: true } : item));
+    setSelectedPostForDetail(post || null);
+    if (!post) setLifecycleNotice('삭제된 공고예요. 초대 기록은 Me에 남아 있어요.');
+  };
+  const changeStrangerInvitationNotice = (enabled: boolean) => {
+    if (!currentUser) return;
+    setNotificationSettings(prev => prev.some(item => item.userId === currentUser.id)
+      ? prev.map(item => item.userId === currentUser.id ? { ...item, strangerInvitations: enabled } : item)
+      : [...prev, { userId: currentUser.id, strangerInvitations: enabled }]);
+  };
   const activeAppointmentsWith = (targetId: string) => appointments.filter(item =>
     currentUser && item.participantIds?.includes(currentUser.id) && item.participantIds.includes(targetId) && isConfirmedAppointment(item));
   const confirmBlock = (member: ChatMember) => {
     if (!currentUser || member.id === currentUser.id) return;
+    const impact = blockImpact(appointments, completions, currentUser.id, member.id);
+    if (impact.mode === 'hold') { setLifecycleNotice(`${impact.code} 검토 보류: ${impact.reason}`); return; }
     let state: LifecycleState | null = lifecycleState();
-    for (const item of activeAppointmentsWith(member.id)) {
+    for (const item of impact.appointments) {
       const next = cancelConfirmedAppointment(state!, item.id, '차단으로 동행 취소', currentUser.id, clock());
       if (next) state = next;
     }
@@ -908,7 +956,21 @@ export default function App() {
   };
 
   const postAuthor = (post: MeetupPost): ChatMember => ({ id: post.authorId || `unknown-${post.id}`, displayName: post.author, avatar: post.avatar });
-  const authorSugarOf = (post: MeetupPost) => publicProfileForPost(post, currentUser, users).sugarContent;
+  const withReleasedReviews = (profile: ReturnType<typeof publicProfileForMember>) => ({
+    ...profile,
+    reviews: [
+      ...profile.reviews,
+      ...releasedReviewsFor(profile.id, appointmentReviews).map(review => ({
+        id: review.id,
+        author: userById(review.reviewerId)?.maskedName || '동행 이웃',
+        rating: review.rating,
+        comment: review.comment || [...review.positiveItems, ...review.negativeItems].join(' · '),
+      })),
+    ],
+  });
+  const profileForMember = (member: ChatMember, viewer = currentUser) => withReleasedReviews(publicProfileForMember(member, viewer, users));
+  const profileForPost = (post: MeetupPost) => withReleasedReviews(publicProfileForPost(post, currentUser, users));
+  const authorSugarOf = (post: MeetupPost) => profileForPost(post).sugarContent;
   /** The other participant, seen from the signed-in user (the stored partnerName is only the accepting side's view). */
   const partnerOf = (target: Appointment): ChatMember | undefined => {
     const member = chatRooms.find(room => room.appointmentId === target.id)?.members.find(item => item.id !== currentUser?.id);
@@ -917,13 +979,39 @@ export default function App() {
     const account = otherId ? userById(otherId) : undefined;
     return otherId ? { id: otherId, displayName: account?.maskedName || target.partnerName, avatar: account?.avatar || target.partnerAvatar } : undefined;
   };
+  const currentNotificationSettings = notificationSettingsFor(notificationSettings, currentUser?.id || '');
+  const openNotificationTarget = (item: NotificationItem) => {
+    if (!currentUser || item.recipientId !== currentUser.id) return;
+    setNotifications(prev => prev.map(value => value.id === item.id ? { ...value, read: true } : value));
+    setIsNotificationsOpen(false);
+    if (item.targetType === 'invitation' && item.targetId) {
+      const invitation = invitations.find(value => value.id === item.targetId);
+      if (invitation) openInvitation(invitation);
+      return;
+    }
+    if ((item.targetType === 'room' || item.roomId) && (item.targetId || item.roomId)) {
+      const room = chatRooms.find(value => value.id === (item.targetId || item.roomId));
+      if (room) openRoom(room);
+      return;
+    }
+    if (item.targetType === 'post' && item.targetId) {
+      const post = meetupPosts.find(value => value.id === item.targetId);
+      if (post) setSelectedPostForDetail(post);
+      else setLifecycleNotice('현재 공고를 찾을 수 없어요. 종료·삭제된 기록은 Me에서 확인해 주세요.');
+      return;
+    }
+    if ((item.targetType === 'appointment' || item.targetType === 'review') && item.targetId) {
+      const target = appointments.find(value => value.id === item.targetId);
+      if (target) openAppointment(target);
+      return;
+    }
+    if (item.action === 'match_requests') { setRequestTab('received'); setActiveTab('me'); }
+  };
   const detailEvent = selectedPostForDetail?.eventId ? eventById(selectedPostForDetail.eventId) : undefined;
   const dashboardPartner = chatRooms.find(room => room.appointmentId === appointment.id)?.members.find(member => member.id !== currentUser?.id);
-  const dashboardProfile = dashboardPartner ? publicProfileForMember(dashboardPartner, currentUser, users) : undefined;
+  const dashboardProfile = dashboardPartner ? profileForMember(dashboardPartner) : undefined;
   const completionActionsFor = (target: Appointment) => ({
-    availability: completionAvailability(target, currentUser?.id, now),
-    isCompleted: target.status === '동행 완료',
-    hasSubmittedReview: Boolean(submittedReviews[reviewKey(target.id)]),
+    state: completionReviewState(target, currentUser?.id, completions, appointmentReviews, now),
     onComplete: () => handleCompleteAppointment(target),
     onOpenReview: () => handleOpenReview(target),
   });
@@ -941,6 +1029,28 @@ export default function App() {
     if (action.kind === 'proposal') resolveRoomProposal(action.roomId, action.messageId, action.accepted, action.sample, true);
     if (action.kind === 'create') handleCreateMeetup(action.post, true);
   };
+  const startDemoSegment = (segment: 'full' | 'matching' | 'completion') => {
+    if (!demoMode) return;
+    if (segment === 'full') {
+      setCurrentUser(null); setActiveTab('home'); setIsAuthModalOpen(true);
+      setLifecycleNotice('전체 시연: 가입 → 프로필 완성 → 공고 탐색·신청 → 작성자 수락 → 종료 뒤 각자 완료·평가 순서로 진행해 보세요.');
+      return;
+    }
+    const demoUser = users.find(user => user.id === DEMO_USER_ID);
+    if (demoUser) setCurrentUser({ ...demoUser, isLoggedIn: true });
+    if (segment === 'matching') {
+      setActiveTab('explore'); setExploreFilters(emptyExploreFilters());
+      setLifecycleNotice('매칭 구간: 공고 상세에서 신청하고, 체험 설정의 역할을 작성자로 바꿔 최종 수락해 보세요.');
+      return;
+    }
+    const target = appointments.find(item => item.id === 'appt-walk') || appointments.find(item => item.participantIds?.includes(DEMO_USER_ID));
+    if (target) {
+      setActiveAppointmentId(target.id); setReviewAppointmentId(target.id);
+      if (target.endsAt) changeTimeOffset(Date.parse(target.endsAt) - Date.now());
+      setActiveTab('me'); setIsDashboardOpen(true);
+      setLifecycleNotice('완료·평가 구간: 정확한 종료 시각부터 내 완료를 확인하고 평가하세요. 상대 역할 전환으로 별도 완료·평가를 제출할 수 있어요.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f2f4f8] flex justify-center selection:bg-purple-100">
@@ -952,6 +1062,7 @@ export default function App() {
           onSetTimeOffset={changeTimeOffset}
           onSetTime={iso => changeTimeOffset(Date.parse(iso) - Date.now())}
           onChangeVariant={(key, value) => setDemoSettings(prev => ({ ...prev, variants: { ...prev.variants, [key]: value } }))}
+          onStartSegment={startDemoSegment}
           onReset={resetPrototype}
         />}
         {storageIssue && <div role="alert" data-storage-issue={storageIssue} className="bg-red-50 text-red-900 text-xs px-4 py-2.5 border-b border-red-100">
@@ -1018,7 +1129,7 @@ export default function App() {
         {/* Request and appointment conversations share the same rooms. */}
         {activeTab === 'chat' && privateAreaAllowed && <div className="flex-1 flex flex-col">
           {activeRoom && currentUser && activePartner ? <ChatView key={activeRoom.id}
-            room={activeRoom} user={currentUser} partner={publicProfileForMember(activePartner, currentUser, users)} post={activeRoomPost} request={activeRoomRequest} appointment={activeRoomAppointment}
+            room={activeRoom} user={currentUser} partner={profileForMember(activePartner)} post={activeRoomPost} request={activeRoomRequest} appointment={activeRoomAppointment}
             status={roomAccess(activeRoom, currentUser.id, joinRequests, appointments, meetupPosts, clock())}
             completionActions={activeRoomAppointment ? completionActionsFor(activeRoomAppointment) : undefined}
             onBack={() => setActiveRoomId(null)} onOpenProfile={() => setSelectedChatProfile(activePartner)}
@@ -1064,11 +1175,25 @@ export default function App() {
               reviews={reviews}
               escrowPayments={escrowPayments}
               invitations={invitations}
+              favorites={favorites}
+              completions={completions}
+              appointmentReviews={appointmentReviews}
+              blocks={blocks}
+              notificationSettings={currentNotificationSettings}
+              users={users}
+              now={now}
               userNameOf={id => userById(id)?.maskedName || meetupPosts.find(post => post.authorId === id)?.author || '회원'}
               partnerOf={partnerOf}
               onOpenAppointmentChat={target => { const room = chatRooms.find(item => item.appointmentId === target.id); if (room) openRoom(room); }}
               onOpenPartnerProfile={setSelectedChatProfile}
-              onOpenInvitationPost={postId => setSelectedPostForDetail(meetupPosts.find(post => post.id === postId) || null)}
+              onOpenInvitationPost={openInvitation}
+              onToggleFavoriteNotice={toggleFavoriteNotice}
+              onRemoveFavorite={toggleFavorite}
+              onInviteFavorite={inviteFavorite}
+              onOpenFavoriteProfile={openProfileById}
+              onChangeStrangerInvitationNotice={changeStrangerInvitationNotice}
+              onUnblock={targetId => { setBlocks(prev => prev.filter(item => !(item.blockerId === currentUser.id && item.blockedId === targetId))); setLifecycleNotice('차단을 해제했어요. 이전에 취소된 동행은 복구되지 않아요.'); }}
+              onApplyAiFilters={filters => { setExploreFilters(filters); setActiveTab('explore'); setLifecycleNotice('수정 가능한 예시 조건을 둘러보기에 적용했어요. 실제 AI 호출 결과는 아니에요.'); }}
               acceptBlockedReason={acceptBlockedReason}
             />
           </div>
@@ -1161,7 +1286,7 @@ export default function App() {
             setSelectedPostForDetail(null); setSelectedCategory(null); setSelectedEvent(null); openRoom(existingPostRoom);
           } : undefined}
           canViewPrivateLocation={canViewSecretLocation(selectedPostForDetail?.id, appointments, currentUser?.id)}
-          authorProfile={selectedPostForDetail ? publicProfileForMember(postAuthor(selectedPostForDetail), currentUser, users) : null}
+          authorProfile={selectedPostForDetail ? profileForMember(postAuthor(selectedPostForDetail)) : null}
           onOpenAuthorProfile={() => selectedPostForDetail && setSelectedChatProfile(postAuthor(selectedPostForDetail))}
           isCovered={Boolean(selectedChatProfile)}
           now={now}
@@ -1223,11 +1348,12 @@ export default function App() {
             setActiveTab('me');
             if (!currentUser) setIsAuthModalOpen(true);
           }}
+          onOpenTarget={openNotificationTarget}
         />
 
         {selectedChatProfile && <UserProfileModal
           key={selectedChatProfile.id}
-          profile={publicProfileForMember(selectedChatProfile, currentUser, users)}
+          profile={profileForMember(selectedChatProfile)}
           variant={demoSettings.variants.profile}
           showVariantLabel={demoMode}
           onClose={() => setSelectedChatProfile(null)}
@@ -1243,13 +1369,13 @@ export default function App() {
             onLoginRequired: () => { setSelectedChatProfile(null); setIsAuthModalOpen(true); },
           }}
         />}
-        {isProfilePreviewOpen && currentUser && <UserProfileModal profile={publicProfileForMember(selfMember(currentUser), currentUser, users)}
+        {isProfilePreviewOpen && currentUser && <UserProfileModal profile={profileForMember(selfMember(currentUser))}
           variant={demoSettings.variants.profile} showVariantLabel={demoMode} selfPreview backLabel="Me로 돌아가기" onClose={() => setIsProfilePreviewOpen(false)} />}
         {profileEditor && currentUser && <ProfileEditor
           key={`${currentUser.id}-${profileEditor.mode}`}
           user={currentUser} mode={profileEditor.mode} initialStep={profileEditor.step} reason={profileEditor.reason}
           variant={demoSettings.variants.profile} showVariantLabel={demoMode}
-          previewOf={patch => publicProfileForMember(selfMember(currentUser), { ...currentUser, ...patch }, users)}
+          previewOf={patch => withReleasedReviews(publicProfileForMember(selfMember(currentUser), { ...currentUser, ...patch }, users))}
           onCommit={commitProfile}
           onClose={() => setProfileEditor(null)}
           onDone={() => { setProfileEditor(null); setLifecycleNotice(profileEditor.mode === 'setup' ? '프로필을 저장했어요. 이제 동행을 신청하거나 공고를 올릴 수 있어요.' : '프로필 변경을 저장했어요.'); }}
@@ -1258,6 +1384,7 @@ export default function App() {
           onSubmit={() => { setSafetyDialog(null); setLifecycleNotice('신고를 예시로 접수했어요. 실제 운영팀 전달이나 자동 제재는 없어요.'); }} />}
         {privateAreaAllowed && safetyDialog?.kind === 'block' && <BlockUserDialog targetName={safetyDialog.member.displayName}
           affectedTitles={activeAppointmentsWith(safetyDialog.member.id).map(item => item.title)}
+          holdReason={currentUser && blockImpact(appointments, completions, currentUser.id, safetyDialog.member.id).mode === 'hold' ? (blockImpact(appointments, completions, currentUser.id, safetyDialog.member.id) as Extract<ReturnType<typeof blockImpact>, { mode: 'hold' }>).reason : undefined}
           onClose={() => setSafetyDialog(null)} onConfirm={() => confirmBlock(safetyDialog.member)} />}
         {privateAreaAllowed && postAction && <LifecycleConfirmDialog title={postAction.mode === 'deleted' ? '공고 삭제' : '모집 마감'} description={postAction.mode === 'deleted' ? '공고를 목록에서 지우고 남아 있는 신청을 종료합니다. 기존 신청·대화 기록은 보존돼요.' : '새 신청을 받지 않고 미확정 신청을 함께 종료합니다. 동행이 확정되는 것은 아니에요.'} actionLabel={postAction.mode === 'deleted' ? '공고 삭제하기' : '모집 마감하기'} onClose={() => setPostAction(null)} onConfirm={confirmPostAction} />}
         {privateAreaAllowed && cancellationTarget && <CancellationDialog key={cancellationTarget.id} kind={cancellationTarget.kind} title={cancellationTarget.title} onClose={() => setCancellationTarget(null)} onConfirm={confirmCancellation} />}
@@ -1287,10 +1414,11 @@ export default function App() {
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
           appointment={reviewAppointment}
-          existingSubmission={submittedReviews[reviewKey(reviewAppointment.id)]}
-          hasSettled={settlementLocks.current.has(reviewKey(reviewAppointment.id))}
+          variant={demoSettings.variants.review}
+          state={completionReviewState(reviewAppointment, currentUser?.id, completions, appointmentReviews, now)}
+          ownReview={appointmentReviews.find(item => item.appointmentId === reviewAppointment.id && item.reviewerId === currentUser?.id)}
+          partnerReview={appointmentReviews.find(item => item.appointmentId === reviewAppointment.id && item.reviewerId !== currentUser?.id)}
           onSubmitReview={handleSubmitReview}
-          onSettleSugar={handleSettleSugar}
         />}
 
         {/* Phase 6 Modal: PRO 1:1 안심 에스크로 결제 모달 */}
