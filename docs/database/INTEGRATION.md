@@ -4,7 +4,7 @@
 
 ## 현재 판정
 
-**Supabase API 적용과 로컬 앱 연결을 완료했다. 마지막 채팅 버튼 수정의 브라우저 재검증과 새 Vercel 배포는 대기 중이다.**
+**Supabase API와 앱 연결을 완료했고 Vercel Preview에서 전체 DB 흐름을 검증했다. 운영 주소 반영만 대기 중이다.**
 
 외부 도구 자동 승인 검토가 `Selected model is at capacity` 오류로 브라우저 재실행을 두 번 거부했고, 이후 읽기 전용 DB 조회도 같은 사유로 거부했다. 이를 DB/앱 실패 또는 배포 성공으로 해석하면 안 된다.
 
@@ -42,9 +42,10 @@
 1. **PASS — 실제 HTTP/API 검증 22개**: 허용되지 않은 번호·틀린 코드·토큰 없는 요청 거부, 실제 Auth 세션, 공고 저장·공개 조회, 타인 수정 차단, 직접 쓰기·RPC 우회 차단, 신청 전 상세 장소 비공개, 제3자 대화 접근 차단, 조건 재동의 전 수락 차단, 수락 후 당사자 장소 공개, 타 계정의 저장 메시지 조회, 조기 완료 차단, 즐겨찾기 비공개, 취소 후 대화 쓰기 차단. [기록](evidence/cloud-api.json), [실행 코드](../../scripts/check-cloud-api.py).
 2. **PASS — 원격 DB 트랜잭션 검증**: 중복 초대 방지, 한 명 수락 시 다른 신청 종료, 일정 제안자의 자기 수락 차단, 일정 변경 반영, 한쪽만 완료한 경우 차단 처리 보류, 양쪽 평가 제출 전후 공개, 중복 평가 차단, 완료 이력 보존, 차단 후 메시지 차단, 사용자 권한 필드 변경 차단. [검증 SQL](../../supabase/verify-commands.sql)을 BEGIN/ROLLBACK 안에서 실행했다. 과거 약속 시간은 트랜잭션 안에서 인위적으로 설정했고 모두 롤백했다. 실제 만남·실제 사용자의 완료 사례가 아니다.
 3. **PASS — 실제 브라우저와 실제 Supabase**: 두 계정 로그인, 공고 작성, 새로고침 후 공고 유지, 타 계정 신청, 작성자 수락과 같은 대화방 열기. 실행 오류 0건. [기록](evidence/cloud-browser.json).
-4. **수정 후 재검증 대기**: 추가 채팅 UI 검사에서 DB 테스트 배너 때문에 전송 버튼이 하단 메뉴에 가려졌다. 배너 높이를 CSS 계산에 포함하도록 수정했다. 이 수정 후 브라우저 재검증과 전송 실패 안내 검사는 자동 승인 시스템 오류로 실행하지 못했다. API로 메시지 저장·상대 계정 조회는 1번에서 확인했다.
-5. **PASS — 로컬 검사**: 단위 테스트 85개, 타입 검사와 Vite 빌드. 큰 JS 번들 경고는 남아 있다.
-6. **보안 advisor**: RLS/권한 관련 신규 지적 없음. Auth의 유출 비밀번호 차단 설정 미사용 WARN 1개가 남아 있다. 테스트 로그인은 사용자가 정한 비밀번호를 받지 않는다. 실제 일반 가입을 제공할 때 [비밀번호 보호 설정](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)을 검토한다. 성능 advisor는 사용되지 않은 초기 인덱스 INFO 18개였다.
+4. **PASS — 채팅 UI 수정 후 재검증**: DB 테스트 배너 높이를 채팅 영역 계산에 포함했다. 로컬 실제 브라우저에서 메시지 저장·상대 계정 조회, 네트워크 실패 시 오류 표시와 저장되지 않은 메시지가 대화에 나타나지 않는 것을 확인했다.
+5. **PASS — Vercel Preview 통합 검증**: `https://yumidang6-8jwqxxtbp-jjackbb-projects.vercel.app` 배포 `dpl_7HGSu7gGPwE8VLLX6knULLVVVSeH`에서 두 계정 로그인, 공고 저장·새로고침, 신청·수락, 채팅 저장·상대 조회, 실패 안내 8개가 통과했다. JavaScript pageerror 0건. Preview 접근 보호가 적용돼 있으며 [실행 기록](evidence/vercel-preview-browser.json)을 보존했다.
+6. **PASS — 로컬 검사**: 단위 테스트 85개, 타입 검사와 Vite 빌드. 큰 JS 번들 경고는 남아 있다.
+7. **보안 advisor**: RLS/권한 관련 신규 지적 없음. Auth의 유출 비밀번호 차단 설정 미사용 WARN 1개가 남아 있다. 테스트 로그인은 사용자가 정한 비밀번호를 받지 않는다. 실제 일반 가입을 제공할 때 [비밀번호 보호 설정](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)을 검토한다. 성능 advisor는 사용되지 않은 초기 인덱스 INFO 18개였다.
 
 테스트 과정에서 `[DB 연동 검증]`, `[화면 검증]`으로 표시된 가상 공고·신청·약속·메시지를 생성했다. 실제 회원 활동이나 운영 성과가 아니다. API 검증 공고는 삭제 상태이며, 화면 검증 공고 일부는 다음 검사에 사용할 수 있도록 남아 있다.
 
@@ -52,6 +53,5 @@
 
 1. `VITE_AUTH_MODE=supabase-test npm run dev -- --host 127.0.0.1 --port 3023`로 실행한다.
 2. `node scripts/check-cloud-browser.cjs`를 실행해 채팅 전송·타 계정 조회·강제 네트워크 실패 안내까지 확인한다. 실패를 숨기거나 버튼을 강제 클릭하지 않는다. 이전 실패 때문에 남은 확정 약속과 시간이 겹치면 새 검증 날짜를 선택한다.
-3. Vercel의 Production/Preview `VITE_AUTH_MODE`를 `supabase-test`로 갱신하고 새 프로젝트 URL/공개 키를 확인한다. 이번 연동 작업에서는 아직 원격 환경변수 변경을 수행하지 않았다.
-4. 검증된 소스 사본을 `--prod --skip-domain`으로 먼저 배포한다. 실제 브라우저로 로그인과 DB 저장을 확인한 뒤 운영 주소에 promote한다.
-5. 운영 주소에서 다시 확인하고 이 문서의 대기 판정을 실제 결과로 갱신한다. 코드 생성이나 로컬 빌드 성공만으로 운영 DB 연동 완료를 선언하지 않는다.
+3. Preview `VITE_AUTH_MODE=supabase-test` 설정과 배포 검증은 완료했다. Production의 같은 변경은 공용 인증을 운영에 여는 정확한 범위의 사용자 승인을 받은 뒤 적용한다.
+4. 검증된 Preview를 Production으로 배포하고 운영 주소에서 다시 확인한다.

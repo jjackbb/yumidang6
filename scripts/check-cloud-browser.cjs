@@ -5,6 +5,16 @@ const { chromium } = require(
     "/Users/b/.npm/_npx/e41f203b7505f1fb/node_modules/playwright",
 );
 const base = process.env.CHECK_URL || "http://127.0.0.1:3023";
+const cookieFile = process.env.CHECK_COOKIE_FILE;
+const bypassCookies = cookieFile
+  ? fs.readFileSync(cookieFile, "utf8").split("\n")
+      .filter((line) => line && (!line.startsWith("#") || line.startsWith("#HttpOnly_")))
+      .map((line) => {
+        const httpOnly = line.startsWith("#HttpOnly_");
+        const fields = line.replace(/^#HttpOnly_/, "").split("\t");
+        return { domain: fields[0], path: fields[2], secure: fields[3] === "TRUE", name: fields[5], value: fields[6], httpOnly };
+      })
+  : [];
 (async () => {
   const b = await chromium.launch({
     headless: true,
@@ -17,6 +27,7 @@ const base = process.env.CHECK_URL || "http://127.0.0.1:3023";
   const contexts = [];
   async function login(index) {
     const c = await b.newContext();
+    if (bypassCookies.length) await c.addCookies(bypassCookies);
     contexts.push(c);
     const p = await c.newPage();
     p.setDefaultTimeout(30000);

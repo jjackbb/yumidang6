@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-09-15T07:49:24.661Z",
+  "base": "https://yumidang6-8jwqxxtbp-jjackbb-projects.vercel.app",
+  "cases": [
+    "account 1 login and Me",
+    "account 2 login and Me",
+    "post form saved to server",
+    "post survives reload",
+    "other account applies via UI",
+    "host accepts and opens existing room",
+    "message persisted and read by other account",
+    "failed write shows error without a saved message"
+  ],
+  "errors": [],
+  "postId": "7b2e94c6-d3b1-4b9d-8621-266e168d1608",
+  "title": "[화면 검증] 서버에 저장한 산책 1789458558333"
+}
