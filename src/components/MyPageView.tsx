@@ -1,8 +1,9 @@
-import { postStatusLabel } from '../utils/postLifecycle';
+import { isOpenRequest, postStatusLabel } from '../utils/postLifecycle';
 import { CompanionRequests, RequestTab } from './CompanionRequests';
 import React, { useState } from 'react';
-import { Heart, ShieldCheck, ChevronRight, Star, Award, LogOut, Sparkles, MessageSquare, Lock, Camera, Eye, PencilLine } from 'lucide-react';
-import { Appointment, CurrentUser, MeetupPost, ReviewItem, EscrowPayment, JoinRequest } from '../types';
+import { Heart, ShieldCheck, ChevronRight, Star, Award, LogOut, Sparkles, MessageSquare, Lock, Camera, Eye, PencilLine, Inbox } from 'lucide-react';
+import { Appointment, ChatMember, CurrentUser, Invitation, MeetupPost, ReviewItem, EscrowPayment, JoinRequest } from '../types';
+import { ACTIVITY_TABS, myActivity, postEndedReason, type ActivityTab } from '../utils/myActivity';
 import { DEMO_USER_ID } from '../data/demoIdentity';
 import { avatarSrc, profileStepLabel, type ProfileStep } from '../utils/profile';
 
@@ -31,9 +32,23 @@ interface MyPageViewProps {
   onPreviewProfile: () => void;
   reviews?: ReviewItem[];
   escrowPayments?: EscrowPayment[];
+  invitations: Invitation[];
+  userNameOf: (userId: string) => string;
+  /** The other participant of an appointment, from the viewer's side. */
+  partnerOf: (appointment: Appointment) => ChatMember | undefined;
+  onOpenAppointmentChat: (appointment: Appointment) => void;
+  onOpenPartnerProfile: (member: ChatMember) => void;
+  onOpenInvitationPost: (postId: string) => void;
+  acceptBlockedReason?: (request: JoinRequest) => string | null;
 }
 
+const invitationStatusLabel: Record<Invitation['status'], string> = {
+  received: '새 초대', viewed: '확인함', applied: '직접 신청함',
+  post_closed: '모집 마감', post_expired: '모집 기간 만료', post_deleted: '삭제된 공고',
+};
+
 export const MyPageView: React.FC<MyPageViewProps> = ({
+  invitations, userNameOf, partnerOf, onOpenAppointmentChat, onOpenPartnerProfile, onOpenInvitationPost, acceptBlockedReason,
   appointments, requests, requestTab, onChangeRequestTab, onAcceptRequest, onRejectRequest, onOpenRequestPost, onOpenRequestChat, onOpenRequestProfile, onCancelRequest, onReconfirmRequest, posts, onOpenOwnPost,
   onOpenDashboard,
   currentUser,
@@ -47,6 +62,8 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
   escrowPayments = [],
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'reviews' | 'escrow'>('info');
+  const [activityTab, setActivityTab] = useState<ActivityTab>('confirmed');
+  const [invitationTab, setInvitationTab] = useState<'received' | 'sent'>('received');
 
   if (!currentUser || !currentUser.isLoggedIn) {
     return (
@@ -81,8 +98,76 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
         <p>남은 단계: {profileMissing.map(step => profileStepLabel[step]).join(' · ')}. 완성 전에는 동행 신청과 공고 작성이 제한돼요.</p>
         <button type="button" onClick={() => onEditProfile(profileMissing[0])} className="rounded-xl bg-amber-900 text-white px-3 py-2 font-bold">프로필 이어서 작성</button>
       </section>}
-      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} onReconfirm={onReconfirmRequest} /></div>
-      <section aria-label="내가 쓴 공고" className="bg-white rounded-2xl p-4"><h2 className="text-sm font-bold mb-3">내가 쓴 공고</h2>{posts.filter(post => post.authorId === currentUser.id && post.status !== 'deleted').length === 0 ? <p className="text-xs text-gray-500">아직 작성한 공고가 없어요.</p> : posts.filter(post => post.authorId === currentUser.id && post.status !== 'deleted').map(post => <button key={post.id} onClick={() => onOpenOwnPost(post.id)} className="w-full text-left py-3 border-b border-gray-100 text-xs"><b className="block">{post.title}</b><span className="block text-gray-500 mt-1">{postStatusLabel(post)} · {post.time}</span></button>)}</section>
+      <div className="-mx-5 -mt-3"><CompanionRequests userId={currentUser.id} requests={requests} posts={posts} acceptBlockedReason={acceptBlockedReason} tab={requestTab} onChangeTab={onChangeRequestTab} onAccept={onAcceptRequest} onReject={onRejectRequest} onOpenPost={onOpenRequestPost} onOpenChat={onOpenRequestChat} onOpenProfile={onOpenRequestProfile} onCancel={onCancelRequest} onReconfirm={onReconfirmRequest} /></div>
+      {(() => {
+        const received = invitations.filter(item => item.recipientId === currentUser.id);
+        const sent = invitations.filter(item => item.senderId === currentUser.id);
+        const visible = invitationTab === 'received' ? received : sent;
+        return <section aria-label="초대 관리" className="bg-white rounded-2xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
+          <h2 className="text-sm font-bold">초대 관리</h2>
+          <p className="text-[11px] text-gray-500 mt-1">초대를 받거나 열어도 신청·확정되지 않아요. 공고를 확인하고 직접 신청해야 해요.</p>
+          <div role="tablist" aria-label="초대 구분" className="flex gap-1.5 mt-3">
+            {([['received', '받은 초대', received.length], ['sent', '보낸 초대', sent.length]] as const).map(([value, label, count]) =>
+              <button key={value} type="button" role="tab" aria-selected={invitationTab === value} onClick={() => setInvitationTab(value)}
+                className={`flex-1 rounded-xl py-2 text-xs font-bold ${invitationTab === value ? 'bg-[#6c2cf5] text-white' : 'bg-gray-100 text-gray-500'}`}>{label} {count}</button>)}
+          </div>
+          <div role="tabpanel" aria-label={invitationTab === 'received' ? '받은 초대' : '보낸 초대'} className="mt-3 space-y-2">
+            {visible.length === 0 && <p className="text-xs text-gray-400 py-3 text-center">
+              {invitationTab === 'received' ? '아직 받은 초대가 없어요.' : '아직 보낸 초대가 없어요. 내 공고를 등록한 뒤 관심친구를 초대할 수 있어요.'}
+            </p>}
+            {visible.map(item => {
+              const post = posts.find(value => value.id === item.postId);
+              return <article key={item.id} data-invitation-id={item.id} className="rounded-xl border border-gray-100 p-3 text-xs">
+                <div className="flex items-center justify-between gap-2"><span className="font-bold">{userNameOf(invitationTab === 'received' ? item.senderId : item.recipientId)}</span><span className="text-[11px] text-[#6c2cf5]">{invitationStatusLabel[item.status]}</span></div>
+                <button type="button" onClick={() => onOpenInvitationPost(item.postId)} className="mt-1 w-full text-left text-gray-700 flex items-center justify-between gap-2">{post?.title || '공고 정보를 찾을 수 없어요'}<ChevronRight size={14} className="shrink-0 text-gray-400" /></button>
+              </article>;
+            })}
+          </div>
+        </section>;
+      })()}
+      {(() => {
+        const activity = myActivity(currentUser.id, posts, appointments);
+        const appointmentList = activity[activityTab];
+        return <>
+          <section aria-label="내가 쓴 공고" className="bg-white rounded-2xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
+            <h2 className="text-sm font-bold">내가 쓴 공고 <span className="text-[#6c2cf5]">{activity.posts.length}</span></h2>
+            {activity.posts.length === 0 ? <p className="text-xs text-gray-500 py-3 text-center">아직 작성한 공고가 없어요.</p> : activity.posts.map(post => {
+              const reason = postEndedReason(post);
+              const waiting = requests.filter(item => item.postId === post.id && isOpenRequest(item)).length;
+              return <div key={post.id} data-own-post={post.id} data-post-status={post.status} className="py-3 border-b border-gray-100 last:border-0 text-xs">
+                <button type="button" onClick={() => onOpenOwnPost(post.id)} className="w-full text-left"><b className="block">{post.title}</b><span className="block text-gray-500 mt-1">{postStatusLabel(post)} · {post.time}</span></button>
+                {post.status === 'recruiting' && <p className="text-[11px] text-[#6c2cf5] mt-1">확정 전 신청 {waiting}건</p>}
+                {reason && <p className="text-[11px] text-gray-500 mt-1" data-post-reason>{reason}</p>}
+              </div>;
+            })}
+          </section>
+          <section aria-label="상태별 동행" className="bg-white rounded-2xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
+            <h2 className="text-sm font-bold">상태별 동행</h2>
+            <div role="tablist" aria-label="동행 상태" className="grid grid-cols-3 gap-1 mt-3 bg-gray-100 rounded-xl p-1">
+              {ACTIVITY_TABS.map(item => <button key={item.id} type="button" role="tab" aria-selected={activityTab === item.id} data-activity-tab={item.id} onClick={() => setActivityTab(item.id)}
+                className={`rounded-lg py-1.5 text-[11px] font-bold ${activityTab === item.id ? 'bg-white text-[#6c2cf5] shadow-xs' : 'text-gray-500'}`}>{item.label} {activity[item.id].length}</button>)}
+            </div>
+            <div role="tabpanel" aria-label={`${ACTIVITY_TABS.find(item => item.id === activityTab)!.label} 동행`} className="mt-3 space-y-2">
+              {appointmentList.length === 0 && <p className="text-xs text-gray-500 py-3 text-center"><Inbox className="mx-auto mb-2 text-gray-300" size={20} />{activityTab === 'confirmed' ? '확정된 동행이 없어요.' : activityTab === 'completed' ? '완료한 동행이 없어요.' : '취소된 동행이 없어요.'}</p>}
+              {appointmentList.map(item => {
+                const partner = partnerOf(item);
+                const post = posts.find(value => value.id === item.postId);
+                return <article key={item.id} data-appointment-card={item.id} data-appointment-status={item.status} className="rounded-xl border border-gray-100 p-3 text-xs space-y-2">
+                  <div className="flex items-center justify-between gap-2"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${item.status === '동행 취소' ? 'bg-gray-100 text-gray-500' : 'bg-purple-50 text-[#6c2cf5]'}`}>{item.status}</span><span className="text-[11px] text-gray-400 truncate">{item.dateTime}</span></div>
+                  <button type="button" onClick={() => onOpenDashboard(item)} className="w-full text-left font-bold text-sm flex items-center justify-between gap-2">{item.title}<ChevronRight size={14} className="shrink-0 text-gray-400" /></button>
+                  {post && <button type="button" onClick={() => onOpenOwnPost(post.id)} className="block text-left text-[11px] text-gray-600 underline decoration-gray-300">연결 공고: {post.title}</button>}
+                  {partner && <button type="button" onClick={() => onOpenPartnerProfile(partner)} aria-label={`${partner.displayName}님의 상세 프로필 보기`} className="text-[11px] text-gray-600">상대: <b>{partner.displayName}</b> · 프로필 보기</button>}
+                  {item.cancellation && <p className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2">{item.cancellation.actorId === currentUser.id ? '내가' : '상대가'} 취소했어요 · 사유: {item.cancellation.reason}</p>}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button type="button" onClick={() => onOpenDashboard(item)} className="rounded-lg bg-gray-100 py-2 font-bold">약속 상세</button>
+                    <button type="button" onClick={() => onOpenAppointmentChat(item)} className="rounded-lg bg-purple-50 text-[#6c2cf5] py-2 font-bold">{item.status === '동행 취소' ? '대화 내역 보기' : '대화방'}</button>
+                  </div>
+                </article>;
+              })}
+            </div>
+          </section>
+        </>;
+      })()}
       {/* Profile Card */}
       <div className="bg-white rounded-[24px] p-5 shadow-[0_2px_14px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">
@@ -247,11 +332,6 @@ export const MyPageView: React.FC<MyPageViewProps> = ({
       {/* View 1: Default Info & Menus */}
       {activeSubTab === 'info' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-[24px] p-5 shadow-sm">
-            <h3 className="text-sm font-bold text-[#6c2cf5] mb-3">나의 동행 ({appointments.length}건)</h3>
-            <div className="divide-y divide-gray-100">{appointments.map(item => <button key={item.id} onClick={() => onOpenDashboard(item)} className="w-full py-3 text-left flex items-center gap-3 justify-between"><div><h4 className="text-sm font-bold">{item.title}</h4><p className="text-xs text-gray-500 mt-1">{item.dateTime}</p><span className="text-[11px] text-[#6c2cf5]">{item.status}</span></div><ChevronRight className="w-4 h-4 shrink-0 text-gray-400" /></button>)}</div>
-          </div>
-
           {/* Menu List */}
           <div className="bg-white rounded-[24px] overflow-hidden shadow-[0_2px_14px_rgba(0,0,0,0.03)] divide-y divide-gray-50">
             <button

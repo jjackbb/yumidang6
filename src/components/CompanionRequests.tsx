@@ -1,10 +1,11 @@
 import React from 'react';
 import { ChevronRight, Inbox } from 'lucide-react';
-import type { JoinRequest } from '../types';
+import type { JoinRequest, MeetupPost } from '../types';
 import { ConditionReview } from './ConditionReview';
 import { DEMO_USER_ID } from '../data/demoIdentity';
 import { isOpenRequest } from '../utils/postLifecycle';
 import { requestStatusLabel } from '../utils/conversations';
+import { requestEndedReason } from '../utils/myActivity';
 
 export type RequestTab = 'sent' | 'received';
 export interface CompanionRequestsProps {
@@ -24,8 +25,14 @@ export interface CompanionRequestsProps {
     agree: boolean,
     simulate?: boolean,
   ) => void;
+  /** Used to show the host (post author) on sent-request cards. */
+  posts?: MeetupPost[];
+  /** Why the host cannot accept yet, beyond pending re-consent (e.g. partner condition). */
+  acceptBlockedReason?: (request: JoinRequest) => string | null;
 }
 export function CompanionRequests({
+  posts = [],
+  acceptBlockedReason = () => null,
   userId,
   requests,
   tab,
@@ -108,6 +115,21 @@ export function CompanionRequests({
               {request.postTitle}
               <ChevronRight size={16} className="shrink-0 text-gray-400" />
             </button>
+            {tab === 'sent' && (() => {
+              const post = posts.find((item) => item.id === request.postId);
+              return post ? (
+                <button
+                  onClick={() => onOpenProfile(request.id)}
+                  aria-label={`${post.author}님의 상세 프로필 보기`}
+                  className="flex items-center gap-2 mt-3 w-full text-left"
+                >
+                  <img src={post.avatar} alt="" className="w-7 h-7 rounded-full object-cover" />
+                  <span className="text-xs font-semibold">{post.author}</span>
+                  <span className="text-[11px] text-gray-400">작성자</span>
+                  <span className="ml-auto text-[11px] text-[#6c2cf5]">프로필 보기 →</span>
+                </button>
+              ) : null;
+            })()}
             {tab === 'received' && (
               <button
                 onClick={() => onOpenProfile(request.id)}
@@ -138,6 +160,11 @@ export function CompanionRequests({
                 취소 사유: {request.cancellationReason}
               </p>
             )}
+            {requestEndedReason[request.status] && (
+              <p data-request-reason className="text-[11px] text-gray-500 bg-gray-50 rounded-xl px-3 py-2 mt-2">
+                {requestEndedReason[request.status]}
+              </p>
+            )}
             <ConditionReview
               request={request}
               userId={userId}
@@ -165,25 +192,32 @@ export function CompanionRequests({
                 신청 취소
               </button>
             )}
-            {tab === 'received' && isOpenRequest(request) && (
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => onReject(request.id)}
-                  className="flex-1 bg-gray-100 text-gray-500 py-2.5 rounded-xl text-xs font-semibold"
-                >
-                  거절
-                </button>
-                <button
-                  disabled={request.status === 'reconfirming'}
-                  onClick={() => onAccept(request.id)}
-                  className="flex-1 bg-[#6c2cf5] text-white py-2.5 rounded-xl text-xs font-bold disabled:bg-gray-200 disabled:text-gray-500"
-                >
-                  {request.status === 'reconfirming'
-                    ? '조건 동의 대기'
-                    : '수락하기'}
-                </button>
-              </div>
-            )}
+            {tab === 'received' && isOpenRequest(request) && (() => {
+              const blocked = acceptBlockedReason(request);
+              return (
+                <>
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => onReject(request.id)}
+                      className="flex-1 bg-gray-100 text-gray-500 py-2.5 rounded-xl text-xs font-semibold"
+                    >
+                      거절
+                    </button>
+                    <button
+                      disabled={request.status === 'reconfirming' || Boolean(blocked)}
+                      onClick={() => onAccept(request.id)}
+                      className="flex-1 bg-[#6c2cf5] text-white py-2.5 rounded-xl text-xs font-bold disabled:bg-gray-200 disabled:text-gray-500"
+                    >
+                      {request.status === 'reconfirming'
+                        ? '조건 동의 대기'
+                        : '수락하기'}
+                    </button>
+                  </div>
+                  {blocked && <p className="text-[11px] text-gray-500 mt-2">{blocked}</p>}
+                  {!blocked && request.status === 'pending' && <p className="text-[11px] text-gray-400 mt-2">대화 없이 바로 수락할 수도 있어요. 수락하면 이 공고의 다른 신청은 종료돼요.</p>}
+                </>
+              );
+            })()}
           </article>
         ))}
       </div>

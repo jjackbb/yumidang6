@@ -310,10 +310,11 @@ export const CreateMeetupModal: React.FC<CreateMeetupModalProps> = ({
           {Object.keys(errors).length > 0 && <p className="text-xs text-red-600" data-form-error-count={Object.keys(errors).length}>입력 내용을 확인해 주세요. 표시된 항목 {Object.keys(errors).length}개를 고치면 저장할 수 있어요.</p>}
 
           <div className="pt-2 flex gap-2">
-            {variant === 'B' && step === 1 && <button type="button" onClick={() => setStep(0)} className="flex-1 py-3.5 bg-gray-100 text-gray-700 font-bold rounded-xl text-sm">이전</button>}
+            {/* Distinct keys: reusing one <button> node would turn the "다음" click into a form submit once step 2 renders. */}
+            {variant === 'B' && step === 1 && <button key="previous" type="button" onClick={() => setStep(0)} className="flex-1 py-3.5 bg-gray-100 text-gray-700 font-bold rounded-xl text-sm">이전</button>}
             {variant === 'B' && step === 0
-              ? <button type="button" onClick={goNext} className="w-full py-3.5 bg-[#6c2cf5] text-white font-bold rounded-xl text-[15px]">다음</button>
-              : <button type="submit" className="flex-[2] w-full py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all">{submitLabel}</button>}
+              ? <button key="next" type="button" onClick={goNext} className="w-full py-3.5 bg-[#6c2cf5] text-white font-bold rounded-xl text-[15px]">다음</button>
+              : <button key="submit" type="submit" className="flex-[2] w-full py-3.5 bg-[#6c2cf5] hover:bg-[#5820d8] text-white font-bold rounded-xl text-[15px] shadow-md shadow-purple-500/25 active:scale-98 transition-all">{submitLabel}</button>}
           </div>
         </form>
       </div>

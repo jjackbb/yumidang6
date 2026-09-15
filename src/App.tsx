@@ -13,7 +13,10 @@ import { EventBanner } from './components/EventBanner';
 import { AppointmentReminders } from './components/AppointmentReminders';
 import { EventsView } from './components/EventsView';
 import { RequestTab } from './components/CompanionRequests';
-import { sampleEventsForMonth } from './data/events';
+import { eventById, sampleEventsForMonth } from './data/events';
+import { eventStatus } from './utils/calendar';
+import { requestEligibility } from './utils/postForm';
+import { emptyExploreFilters, type ExploreFilters } from './utils/explore';
 import { DEMO_USER_ID } from './data/demoIdentity';
 import { appointmentStart, koreaDateParts } from './utils/calendar';
 import { completionAvailability, formatMeetupRange, isValidMeetupRange } from './utils/meetupLifecycle';
@@ -42,7 +45,7 @@ import { ProfileEditor, type ProfilePatch } from './components/ProfileEditor';
 import { BlockUserDialog, ReportUserDialog } from './components/SafetyEntryDialogs';
 import { avatarSrc, missingProfileSteps, profileStepLabel, type ProfileStep } from './utils/profile';
 import { isSavedBy } from './utils/relations';
-import { publicProfileForMember } from './data/publicProfiles';
+import { publicProfileForMember, publicProfileForPost } from './data/publicProfiles';
 import { CancellationDialog, LifecycleConfirmDialog, ScheduleConflictDialog } from './components/LifecycleDialogs';
 import { cancelAppointment as cancelConfirmedAppointment, closePost, conditionsOf, confirmChangedConditions, expirePosts, isConfirmedAppointment, isOpenRequest, isRecruiting, overlappingAppointments, recruitmentDeadline, updateRecruitingPost, type LifecycleState } from './utils/postLifecycle';
 import { acceptRequest, createRequestRoom, requestRoomId, roomAccess } from './utils/conversations';
@@ -174,6 +177,9 @@ export default function App() {
   // Phase 2: Post Detail & Editing states
   const [selectedPostForDetail, setSelectedPostForDetail] = useState<MeetupPost | null>(null);
   const [editingPost, setEditingPost] = useState<MeetupPost | null>(null);
+  /** Where a new post starts from: a category list or one event (its eventId only). */
+  const [createContext, setCreateContext] = useState<{ category?: string; eventId?: string; eventTitle?: string } | null>(null);
+  const [exploreFilters, setExploreFilters] = useState<ExploreFilters>(emptyExploreFilters);
 
   // Phase 3: 1:1 Matching Requests & Modals
   const [isJoinRequestModalOpen, setIsJoinRequestModalOpen] = useState(false);
@@ -495,12 +501,18 @@ export default function App() {
     return false;
   };
 
-  const handleOpenCreateMeetup = () => {
+  const handleOpenCreateMeetup = (context: { category?: string; eventId?: string } = {}) => {
     if (!currentUser || !currentUser.isLoggedIn) {
       setIsAuthModalOpen(true);
       return;
     }
     if (!requireCompleteProfile('공고 작성')) return;
+    const event = context.eventId ? eventById(context.eventId) : undefined;
+    if (context.eventId && (!event || eventStatus(event, clock()) === 'ended')) {
+      setLifecycleNotice('종료된 행사에는 새 동행을 모집할 수 없어요. 행사 정보와 기존 공고는 계속 볼 수 있어요.');
+      return;
+    }
+    setCreateContext(event ? { eventId: event.id, eventTitle: event.title, category: { 전시: '전시', 축제: '축제', 공연: '공연', 팝업: '쇼핑' }[event.kind] } : { category: context.category });
     setEditingPost(null);
     setIsCreateModalOpen(true);
   };
@@ -515,19 +527,20 @@ export default function App() {
       pageKey: 'CREATE_MEETUP',
       metadata: { category: newPost.category, title: newPost.title },
     });
-    // Also add notification
+    // Registration is public at once; only the author gets this confirmation (no favorite-first window).
     setNotifications((prev) => [
       {
-        id: 'notif-' + Date.now(),
-        title: '새로운 1:1 동행이 등록되었습니다',
-        description: `[${newPost.category}] "${newPost.title}" 모집이 시작되었습니다.`,
-        time: '방금',
+        id: 'notif-' + crypto.randomUUID(),
+        title: '공고를 등록했어요',
+        description: `[${newPost.category}] "${newPost.title}" 공고가 전체 공개로 모집을 시작했어요.`,
+        time: '방금', createdAt: clock().toISOString(), recipientId: currentUser.id,
+        targetType: 'post', targetId: newPost.id,
         read: false,
         type: 'event',
       },
       ...prev,
     ]);
-    setIsCreateModalOpen(false);
+    setIsCreateModalOpen(false); setCreateContext(null);
     return true;
   };
 
@@ -546,11 +559,24 @@ export default function App() {
   };
   const handleEditPost = (post: MeetupPost) => {
     if (post.authorId !== currentUser?.id || !isRecruiting(post, clock())) { setLifecycleNotice('모집 중인 본인 공고만 수정할 수 있어요. 확정 약속은 대화방에서 변경을 제안해 주세요.'); return; }
-    setEditingPost(post); setSelectedPostForDetail(null); setIsCreateModalOpen(true);
+    setEditingPost(post); setCreateContext(null); setSelectedPostForDetail(null); setIsCreateModalOpen(true);
+  };
+  const userById = (id: string) => users.find(user => user.id === id) || (currentUser?.id === id ? currentUser : undefined);
+  /** Host-side reason an open request cannot be accepted: the requester no longer meets the partner condition. */
+  const acceptBlockedReason = (request: JoinRequest) => {
+    const post = meetupPosts.find(item => item.id === request.postId);
+    const requester = userById(request.requesterId);
+    return post && requester && !requestEligibility(post, requester).ok ? '신청자가 현재 상대 조건에 맞지 않아 수락할 수 없어요. 조건을 되돌리거나 신청을 거절해 주세요.' : null;
   };
   const handleReconfirm = (requestId: string, revision: number, agree: boolean, simulate = false) => {
     const request = joinRequests.find(item => item.id === requestId);
     if (!request || !currentUser || (simulate && (currentUser.id !== DEMO_USER_ID || request.hostId !== currentUser.id))) return;
+    const requester = userById(request.requesterId);
+    const post = meetupPosts.find(item => item.id === request.postId);
+    if (agree && post && requester && !requestEligibility(post, requester).ok) {
+      setLifecycleNotice(`${requestEligibility(post, requester).reason} 변경 조건에 동의할 수 없어요. 거절하면 신청이 종료돼요.`);
+      return;
+    }
     applyLifecycle(confirmChangedConditions(lifecycleState(), requestId, revision, agree, simulate ? request.requesterId : currentUser.id, clock()));
   };
   const simulatePostChange = (requestId: string) => {
@@ -577,6 +603,10 @@ export default function App() {
       alert('이미 1:1 매칭이 마감된(2/2명) 공고입니다.');
       return;
     }
+    if (!requestEligibility(post, currentUser).ok) {
+      setLifecycleNotice(requestEligibility(post, currentUser).reason);
+      return;
+    }
 
     trackFunnelEvent({
       step: 'JOIN_REQUEST_OPEN',
@@ -594,7 +624,7 @@ export default function App() {
   // Phase 3: Submit Join Request
   const handleSendJoinRequest = (postId: string, message: string, ignoreConflict = false) => {
     const post = activeMeetupPosts.find((p) => p.id === postId);
-    if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || !isRecruiting(post, clock()) || !message.trim()) return false;
+    if (!post || !post.authorId || !currentUser || post.authorId === currentUser.id || !isRecruiting(post, clock()) || !message.trim() || !requestEligibility(post, currentUser).ok) return false;
     if (joinRequests.some(request => request.postId === post.id && request.requesterId === currentUser.id && ['pending', 'reconfirming', 'accepted'].includes(request.status))) {
       alert('이미 신청한 동행이에요. Me에서 신청 상태를 확인해 주세요.');
       return false;
@@ -653,6 +683,7 @@ export default function App() {
     const targetPost = meetupPosts.find(item => item.id === targetReq.postId);
     const nextRequests = acceptRequest(joinRequests, targetPost, requestId, simulateHost ? targetReq.hostId : currentUser.id, clock());
     if (!nextRequests || !targetPost || matchingLocks.current.has(targetReq.postId)) return;
+    if (acceptBlockedReason(targetReq)) { setLifecycleNotice(acceptBlockedReason(targetReq)); return; }
     if (!ignoreConflict && warnConflict({ kind: 'accept', requestId, simulateHost }, [targetReq.hostId, targetReq.requesterId], targetPost.startsAt, targetPost.endsAt)) return;
     matchingLocks.current.add(targetReq.postId);
     const roomId = requestRoomId(requestId), appointmentId = `apt-${requestId}`;
@@ -881,6 +912,16 @@ export default function App() {
   };
 
   const postAuthor = (post: MeetupPost): ChatMember => ({ id: post.authorId || `unknown-${post.id}`, displayName: post.author, avatar: post.avatar });
+  const authorSugarOf = (post: MeetupPost) => publicProfileForPost(post, currentUser, users).sugarContent;
+  /** The other participant, seen from the signed-in user (the stored partnerName is only the accepting side's view). */
+  const partnerOf = (target: Appointment): ChatMember | undefined => {
+    const member = chatRooms.find(room => room.appointmentId === target.id)?.members.find(item => item.id !== currentUser?.id);
+    if (member) return member;
+    const otherId = target.participantIds?.find(id => id !== currentUser?.id);
+    const account = otherId ? userById(otherId) : undefined;
+    return otherId ? { id: otherId, displayName: account?.maskedName || target.partnerName, avatar: account?.avatar || target.partnerAvatar } : undefined;
+  };
+  const detailEvent = selectedPostForDetail?.eventId ? eventById(selectedPostForDetail.eventId) : undefined;
   const dashboardPartner = chatRooms.find(room => room.appointmentId === appointment.id)?.members.find(member => member.id !== currentUser?.id);
   const dashboardProfile = dashboardPartner ? publicProfileForMember(dashboardPartner, currentUser, users) : undefined;
   const completionActionsFor = (target: Appointment) => ({
@@ -964,7 +1005,13 @@ export default function App() {
           <div className="flex-1 overflow-y-auto">
             <ExploreView
               posts={activeMeetupPosts}
+              now={now}
+              categories={mockCategories}
+              filters={exploreFilters}
+              onChangeFilters={setExploreFilters}
               onSelectPost={(post) => setSelectedPostForDetail(post)}
+              authorSugarOf={authorSugarOf}
+              onGoHome={() => setActiveTab('home')}
             />
           </div>
         )}
@@ -1017,6 +1064,13 @@ export default function App() {
               onPreviewProfile={() => setIsProfilePreviewOpen(true)}
               reviews={reviews}
               escrowPayments={escrowPayments}
+              invitations={invitations}
+              userNameOf={id => userById(id)?.maskedName || meetupPosts.find(post => post.authorId === id)?.author || '회원'}
+              partnerOf={partnerOf}
+              onOpenAppointmentChat={target => { const room = chatRooms.find(item => item.appointmentId === target.id); if (room) openRoom(room); }}
+              onOpenPartnerProfile={setSelectedChatProfile}
+              onOpenInvitationPost={postId => setSelectedPostForDetail(meetupPosts.find(post => post.id === postId) || null)}
+              acceptBlockedReason={acceptBlockedReason}
             />
           </div>
         )}
@@ -1026,7 +1080,7 @@ export default function App() {
           activeTab={activeTab}
           unreadChatCount={notifications.filter(item => !item.read && item.type === 'chat' && chatRooms.some(room => room.id === item.roomId && room.members.some(member => member.id === currentUser?.id))).length}
           onChangeTab={(tab) => setActiveTab(tab)}
-          onOpenCreate={handleOpenCreateMeetup}
+          onOpenCreate={() => handleOpenCreateMeetup()}
         />
 
         {/* Modal: 참여 대시보드 */}
@@ -1058,6 +1112,8 @@ export default function App() {
           onClose={() => setSelectedEvent(null)}
           relatedPosts={activeMeetupPosts.filter((p) => p.eventId && p.eventId === selectedEvent?.id)}
           onSelectPost={setSelectedPostForDetail}
+          onCreateForEvent={event => handleOpenCreateMeetup({ eventId: event.id })}
+          isCovered={Boolean(selectedPostForDetail) || isCreateModalOpen || isAuthModalOpen || Boolean(profileEditor)}
         />
 
         {/* Modal: 카테고리별 동행 리스트 */}
@@ -1066,8 +1122,9 @@ export default function App() {
           isOpen={!!selectedCategory}
           onClose={() => setSelectedCategory(null)}
           posts={activeMeetupPosts}
-          onOpenCreate={handleOpenCreateMeetup}
+          onOpenCreate={() => handleOpenCreateMeetup({ category: selectedCategory?.name })}
           onSelectPost={(post) => setSelectedPostForDetail(post)}
+          authorSugarOf={authorSugarOf}
         />
 
         {/* Modal: 새 동행 모집하기 / 공고 수정하기 (FAB + 클릭 또는 공고 수정 시) */}
@@ -1076,11 +1133,17 @@ export default function App() {
           onClose={() => {
             setIsCreateModalOpen(false);
             setEditingPost(null);
+            setCreateContext(null);
           }}
           onCreateMeetup={handleCreateMeetup}
           onUpdatePost={handleUpdatePost}
           editPost={editingPost}
           currentUser={currentUser}
+          now={now}
+          variant={demoSettings.variants.postForm}
+          showVariantLabel={demoMode}
+          initialCategory={createContext?.category}
+          linkedEvent={createContext?.eventId ? { id: createContext.eventId, title: createContext.eventTitle || '' } : editingPost?.eventId ? { id: editingPost.eventId, title: eventById(editingPost.eventId)?.title || '' } : null}
         />
 
         {/* Modal: 공고 상세 및 비밀장소 마스킹 보호 (Phase 2) */}
@@ -1102,6 +1165,9 @@ export default function App() {
           authorProfile={selectedPostForDetail ? publicProfileForMember(postAuthor(selectedPostForDetail), currentUser, users) : null}
           onOpenAuthorProfile={() => selectedPostForDetail && setSelectedChatProfile(postAuthor(selectedPostForDetail))}
           isCovered={Boolean(selectedChatProfile)}
+          now={now}
+          eligibility={requestEligibility(selectedPostForDetail || {}, currentUser)}
+          linkedEventTitle={detailEvent?.title}
         />
 
         {/* Phase 3 Modal: 1:1 동행 신청서 모달 (신청자) */}

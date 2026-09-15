@@ -1,9 +1,9 @@
 import type { Appointment, JoinRequest, MeetupPost } from '../types.ts';
 import { isConfirmedAppointment } from './postLifecycle.ts';
 
-export type ActivityTab = 'posts' | 'confirmed' | 'completed' | 'cancelled';
+/** Written posts are always listed above these tabs, so Me opens on confirmed meetups. */
+export type ActivityTab = 'confirmed' | 'completed' | 'cancelled';
 export const ACTIVITY_TABS: { id: ActivityTab; label: string }[] = [
-  { id: 'posts', label: '작성 공고' },
   { id: 'confirmed', label: '확정' },
   { id: 'completed', label: '완료' },
   { id: 'cancelled', label: '취소' },

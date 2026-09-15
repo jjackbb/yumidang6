@@ -1,10 +1,40 @@
-import type { ChatRoom, JoinRequest, MeetupPost, NotificationItem, ReviewItem } from '../types';
+import type { ChatRoom, EventBannerItem, JoinRequest, MeetupPost, NotificationItem, ReviewItem } from '../types';
+import { demoSchedule, eventsStartingInWeek, koreaDateParts, weekOfMonth } from '../utils/calendar';
+import { formatMeetupRange } from '../utils/meetupLifecycle';
+import { sampleEventsForMonth } from './events';
 import { DEMO_USER_ID } from './demoIdentity';
 import { demoAccounts } from './demoAccounts';
 import { mockAppointments, mockMeetupPosts, mockNotifications } from './mockData';
 import { createRequestRoom, requestRoomId } from '../utils/conversations';
 import { defaultNotificationSettings } from '../utils/relations';
 import { defaultDemoSettings, type PrototypeData } from '../utils/prototypeStore';
+
+const EVENT_CATEGORY: Record<EventBannerItem['kind'], string> = { 전시: '전시', 축제: '축제', 공연: '공연', 팝업: '쇼핑' };
+
+/** Two example posts written for one event starting this week, so event detail → related posts has data. */
+function eventLinkedPosts(): MeetupPost[] {
+  const { year, month, day } = koreaDateParts();
+  const weekEvents = eventsStartingInWeek(sampleEventsForMonth(year, month), year, month, weekOfMonth(day));
+  const event = weekEvents[1] || weekEvents[0];
+  if (!event) return [];
+  const make = (id: string, authorId: string, author: string, avatar: string, offset: number, hour: number, extra: Partial<MeetupPost>): MeetupPost => {
+    const startsAt = demoSchedule(offset, hour), endsAt = demoSchedule(offset, hour + 2);
+    return {
+      id, eventId: event.id, category: EVENT_CATEGORY[event.kind], title: `${event.title} 함께 둘러봐요`, author, authorId, avatar,
+      startsAt, endsAt, recruitmentEndsAt: startsAt, time: formatMeetupRange(startsAt, endsAt),
+      description: '예시 행사를 천천히 둘러보고 인상 깊었던 부분을 이야기 나눠요. 입장권은 각자 준비해요.',
+      location: `${event.tag} 행사장 주변`, publicLocation: `${event.tag} 행사장 입구`, secretLocation: '행사장 안내데스크 옆 벤치',
+      partnerGender: 'any', partnerPreferences: '천천히 관람하는 걸 좋아하시는 분', currentMembers: 1, maxMembers: 2,
+      tags: ['행사동행', event.kind], status: 'recruiting', ...extra,
+    };
+  };
+  return [
+    make('post-event-1', 'user-sol', '윤*솔', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80', 2, 18, {}),
+    make('post-event-2', 'user-hoon', '강*훈', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80', 3, 11, {
+      title: `${event.title} 오전 관람 동행`, partnerGender: 'female', partnerPreferences: '여성 동행자와 오전에 조용히 관람하고 싶어요',
+    }),
+  ];
+}
 
 /** Fresh example state shared by the ordinary prototype and the explicit demo reset. */
 export function createSeedData(): PrototypeData {
@@ -39,7 +69,7 @@ export function createSeedData(): PrototypeData {
       requesterSugar: 50, message: '사진전을 천천히 보고 감상을 나누고 싶어요!', status: 'pending', createdAt: '1시간 전',
     },
   ];
-  const posts: MeetupPost[] = mockMeetupPosts.map(post => {
+  const posts: MeetupPost[] = [...mockMeetupPosts.map(post => {
     const matched = mockAppointments.some(item => item.postId === post.id);
     return {
       ...post, maxMembers: 2, recruitmentEndsAt: post.recruitmentEndsAt || post.startsAt,
@@ -47,7 +77,7 @@ export function createSeedData(): PrototypeData {
       status: matched ? 'closed' : post.status,
       currentMembers: post.status === 'closed' || matched ? 2 : 1,
     };
-  });
+  }), ...eventLinkedPosts()];
   const rooms: ChatRoom[] = [
     ...requests.flatMap(request => { const post = posts.find(item => item.id === request.postId); return post ? [createRequestRoom(request, post)] : []; }),
     ...mockAppointments.map(item => {

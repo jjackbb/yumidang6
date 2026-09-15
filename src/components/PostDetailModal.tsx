@@ -15,7 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { MeetupPost, CurrentUser, PublicUserProfile } from '../types';
-import { isRecruiting, postStatusLabel, recruitmentDeadline } from '../utils/postLifecycle';
+import { isRecruiting, partnerGenderLabel, postStatusLabel, recruitmentDeadline } from '../utils/postLifecycle';
 import { formatSchedule } from '../utils/calendar';
 import { formatMeetupRange } from '../utils/meetupLifecycle';
 
@@ -37,6 +37,10 @@ interface PostDetailModalProps {
   onOpenAuthorProfile: () => void;
   /** A profile opened from here sits on top; keep this dialog out of keyboard reach until it closes. */
   isCovered?: boolean;
+  now?: Date;
+  /** Partner condition check for the viewer; hosts and logged-out viewers are not blocked here. */
+  eligibility?: { ok: boolean; reason: string };
+  linkedEventTitle?: string;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -52,6 +56,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   canViewPrivateLocation = false,
   onOpenExistingChat, hasLinkedAppointment = false,
   authorProfile, onOpenAuthorProfile, isCovered = false,
+  now = new Date(), eligibility = { ok: true, reason: '' }, linkedEventTitle,
 }) => {
   if (!isOpen || !post || !authorProfile) return null;
   const profile = authorProfile;
@@ -61,8 +66,9 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   );
 
   const isClosed = post.status === 'closed' || post.currentMembers >= 2;
-  const isExpired = post.status === 'expired' || (post.status === 'recruiting' && !isRecruiting(post));
-  const canEdit = isHost && isRecruiting(post) && !hasLinkedAppointment;
+  const isExpired = post.status === 'expired' || (post.status === 'recruiting' && !isRecruiting(post, now));
+  const canEdit = isHost && isRecruiting(post, now) && !hasLinkedAppointment;
+  const blocked = !isHost && !isClosed && !isExpired && !eligibility.ok;
   if (post.status === 'deleted') return <div role="dialog" aria-modal="true" aria-label="삭제된 공고" className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-5"><div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4"><h2 className="text-lg font-bold">삭제된 공고예요</h2><p className="text-sm text-gray-500">{post.title}</p><p className="text-xs text-gray-500">새 신청은 할 수 없어요. Me와 채팅에서 이전 신청과 대화 기록은 확인할 수 있습니다.</p><button onClick={onClose} className="w-full bg-[#6c2cf5] text-white rounded-xl p-3 text-sm">이전 화면으로</button></div></div>;
 
   return (
@@ -204,6 +210,11 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 공고에 등록한 공개 지역: {post.publicLocation ? `${post.location} (${post.publicLocation})` : post.location}
               </span>
             </div>
+            <div className="flex items-center gap-2 text-gray-700" data-partner-condition={post.partnerGender || 'any'}>
+              <Users className="w-4 h-4 text-[#6c2cf5] flex-shrink-0" />
+              <span>상대 조건: {partnerGenderLabel[post.partnerGender || 'any']}</span>
+            </div>
+            {linkedEventTitle && <p className="text-[11px] text-rose-700" data-linked-event={post.eventId}>연결 행사: {linkedEventTitle}</p>}
           </div>
 
           {/* Secret Location Masking (PRD 2.2 Security Requirement) */}
@@ -311,6 +322,11 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
               </div>
             ) : onOpenExistingChat ? (
               <button onClick={onOpenExistingChat} className="w-full bg-[#6c2cf5] text-white font-bold py-3.5 rounded-xl text-sm">연결된 대화방으로 이동</button>
+            ) : blocked ? (
+              <div className="space-y-2">
+                <button disabled aria-describedby="join-blocked-reason" className="w-full py-3.5 rounded-xl font-bold text-[15px] bg-gray-200 text-gray-500 cursor-not-allowed">신청 조건에 맞지 않아요</button>
+                <p id="join-blocked-reason" role="note" className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 leading-relaxed">{eligibility.reason}</p>
+              </div>
             ) : post.companionType === 'pro' ? (
               <button
                 disabled={isClosed || isExpired}

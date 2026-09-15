@@ -1,4 +1,5 @@
 import { eventStatus, eventStatusLabel } from '../utils/calendar';
+import { postStatusLabel } from '../utils/postLifecycle';
 import React from 'react';
 import { ChevronLeft, Sparkles, MapPin, Calendar, Users } from 'lucide-react';
 import { EventBannerItem, MeetupPost } from '../types';
@@ -8,8 +9,11 @@ interface EventDetailModalProps {
   event: EventBannerItem | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Posts written for this eventId only. */
   relatedPosts: MeetupPost[];
   onSelectPost: (post: MeetupPost) => void;
+  onCreateForEvent: (event: EventBannerItem) => void;
+  isCovered?: boolean;
 }
 
 export const EventDetailModal: React.FC<EventDetailModalProps> = ({
@@ -18,12 +22,14 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   onClose,
   relatedPosts,
   onSelectPost,
+  onCreateForEvent,
+  isCovered = false,
 }) => {
   if (!isOpen || !event) return null;
 
   const status = eventStatus(event, now);
   return (
-    <div role="dialog" aria-modal="true" aria-label="이벤트 상세" className="fixed inset-0 z-50 bg-[#f8f9fc] flex justify-center animate-in slide-in-from-right duration-250 text-left selection:bg-purple-100">
+    <div role="dialog" aria-modal="true" aria-label="이벤트 상세" inert={isCovered} className="fixed inset-0 z-50 bg-[#f8f9fc] flex justify-center animate-in slide-in-from-right duration-250 text-left selection:bg-purple-100">
       {/* Mobile Page Container */}
       <div className="w-full max-w-[440px] h-full bg-[#f8f9fc] flex flex-col relative shadow-2xl overflow-hidden">
         {/* Top App Header */}

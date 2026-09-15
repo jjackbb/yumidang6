@@ -11,6 +11,7 @@ interface CategoryDetailModalProps {
   posts: MeetupPost[];
   onOpenCreate: () => void;
   onSelectPost?: (post: MeetupPost) => void;
+  authorSugarOf: (post: MeetupPost) => number | null;
 }
 
 export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
@@ -20,6 +21,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
   posts,
   onOpenCreate,
   onSelectPost,
+  authorSugarOf,
 }) => {
   const [filterRecruitingOnly, setFilterRecruitingOnly] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -233,7 +235,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                         <span className="text-xs font-bold text-gray-900 block leading-tight">
                           {post.author}
                         </span>
-                        <span className="text-[11px] text-[#6c2cf5] font-semibold">당도 99 🍯</span>
+                        <span className="text-[11px] text-[#6c2cf5] font-semibold">{authorSugarOf(post) === null ? '당도 정보 없음' : `당도 ${authorSugarOf(post)} 🍯`}</span>
                       </div>
                     </div>
 

@@ -1,5 +1,5 @@
-import type { EventBannerItem } from '../types';
-import { dateKey, daysInMonth, weeksInMonth } from '../utils/calendar';
+import type { EventBannerItem } from '../types.ts';
+import { dateKey, daysInMonth, weeksInMonth } from '../utils/calendar.ts';
 
 /** Finds an example event by its id (`sample-YYYY-M-week-index`), whatever month it belongs to. */
 export function eventById(id: string | undefined): EventBannerItem | undefined {
